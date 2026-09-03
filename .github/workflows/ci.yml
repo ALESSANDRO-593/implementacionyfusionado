@@ -1,0 +1,50 @@
+﻿name: CI - Compilar aplicaciones
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compilar ${{ matrix.nombre }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - nombre: Aplicación de matrícula
+            carpeta: certificado-de-matricula-app-main/certi-matricula-app
+          - nombre: Mesa de ayuda
+            carpeta: Mesa-de-ayuda-n8n-main/frontend
+          - nombre: Administración de parqueadero
+            carpeta: parqueadero-admin-web
+
+    defaults:
+      run:
+        working-directory: ${{ matrix.carpeta }}
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.5"
+          cache: npm
+          cache-dependency-path: ${{ matrix.carpeta }}/package-lock.json
+
+      - name: Instalar dependencias
+        run: npm ci
+
+      - name: Compilar aplicación
+        run: npm run build
