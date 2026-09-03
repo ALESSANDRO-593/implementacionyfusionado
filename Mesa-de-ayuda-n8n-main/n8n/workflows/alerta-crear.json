@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Crear Alerta",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "panel/alertas/crear",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-alertas-crear"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const parts = auth.slice(7).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\nfunction unauth(){ return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }]; }\nfunction forbidden(){ return [{ json: { _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'No autorizado' } } } }]; }\n\nconst { Client } = require('pg');\nconst crypto = require('crypto');\nconst nodemailer = require('nodemailer');\nconst fs = require('fs');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return unauth();\n// Reportar una incidencia esta abierto a todo el personal del panel:\n// docentes, coordinacion, vinculacion y secretaria. Quien la GESTIONA\n// (cambia el estado) sigue siendo solo el rol con ALERTA_LAB asignada.\nconst body = $json.body || {};\nconst laboratorio_id = Number(body.laboratorio_id || 0);\nconst descripcion = String(body.descripcion || '').trim();\nconst foto = String(body.foto || '');\nif(!laboratorio_id || !descripcion)\n  return [{ json: { _status:400, _body:{ ok:false, error:{ code:'VALIDACION', message:'Complete el laboratorio y la descripción de la incidencia' } } } }];\n\n// Validar imagen (data URL)\nconst m = foto.match(/^data:(image\\/(png|jpeg));base64,(.+)$/);\nif(!m) return [{ json: { _status:400, _body:{ ok:false, error:{ code:'ARCHIVO_INVALIDO', message:'La foto debe ser JPG o PNG' } } } }];\nconst mime = m[1];\nconst buf = Buffer.from(m[3], 'base64');\nif(buf.length > 5*1024*1024) return [{ json: { _status:400, _body:{ ok:false, error:{ code:'ARCHIVO_INVALIDO', message:'La foto supera 5 MB' } } } }];\n\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const ext = mime === 'image/png' ? 'png' : 'jpg';\n  const name = crypto.randomUUID() + '.' + ext;\n  const hash = crypto.createHash('sha256').update(buf).digest('hex');\n  fs.writeFileSync('/data/storage/uploads/' + name, buf);\n  const adj = (await client.query(\n    `INSERT INTO adjuntos (tipo, ruta, mime, tamano_bytes, hash) VALUES ('foto_alerta',$1,$2,$3,$4) RETURNING id`,\n    ['storage/uploads/' + name, mime, buf.length, hash])).rows[0];\n\n  const ins = (await client.query(\n    `INSERT INTO alertas (codigo, laboratorio_id, descripcion, adjunto_id, profesor_id, estado)\n     VALUES ('TMP',$1,$2,$3,$4,'Pendiente') RETURNING id`,\n    [laboratorio_id, descripcion, adj.id, Number(claims.sub)])).rows[0];\n  const codigo = 'AL-' + String(ins.id).padStart(6, '0');\n  await client.query('UPDATE alertas SET codigo=$1 WHERE id=$2', [codigo, ins.id]);\n\n  // Responsables = usuarios activos cuyo ROL audita las alertas de laboratorio\n  const resps = (await client.query(\n    `SELECT u.id, u.nombres, u.correo FROM usuarios_panel u\n       JOIN rol_tipos_solicitud rt ON rt.rol_id = u.rol_id\n       JOIN tipos_solicitud t ON t.id = rt.tipo_solicitud_id\n     WHERE t.codigo = 'ALERTA_LAB' AND u.activo = true ORDER BY u.id`)).rows;\n  const resp = resps[0] || null;\n  if(resp) await client.query('UPDATE alertas SET responsable_id=$1 WHERE id=$2', [resp.id, ins.id]);\n  await client.query('INSERT INTO alerta_historial (alerta_id, estado_nuevo, usuario_id) VALUES ($1,$2,$3)',\n    [ins.id, 'Pendiente', Number(claims.sub)]);\n  await client.query(\"INSERT INTO eventos (tipo, payload, origen) VALUES ('AlertaCreada',$1,'panel')\",\n    [JSON.stringify({ alerta_id: ins.id, codigo })]);\n\n  // Notificación informativa: qué pasó, cuándo y quién lo reportó\n  if(resps.length) {\n    const _rawtx = nodemailer.createTransport({ host: $env.SMTP_HOST, port: Number($env.SMTP_PORT||465), secure: String($env.SMTP_SECURE||'true')!=='false', auth: $env.SMTP_USER ? { user: $env.SMTP_USER, pass: $env.SMTP_PASS } : undefined, tls: { rejectUnauthorized: false } }); const tx = { sendMail: async (m) => { try { return await _rawtx.sendMail(m); } catch(e) { console.log('YaviBot: correo no enviado -', e.message); } } };\n    const d = (await client.query(\n      `SELECT l.nombre AS laboratorio, p.nombres AS reporta, p.correo AS reporta_correo,\n              to_char(a.creado_en AT TIME ZONE 'America/Guayaquil','DD/MM/YYYY') AS fecha,\n              to_char(a.creado_en AT TIME ZONE 'America/Guayaquil','HH24:MI')    AS hora\n         FROM alertas a JOIN laboratorios l ON l.id = a.laboratorio_id\n         JOIN usuarios_panel p ON p.id = a.profesor_id\n        WHERE a.id = $1`, [ins.id])).rows[0];\n    for(const r of resps) {\n      await tx.sendMail({ from: ($env.SMTP_FROM || $env.SMTP_USER || 'no-reply@yavibot.local'), to: r.correo,\n        subject:`Nueva incidencia de laboratorio ${codigo} — ${d.laboratorio}`,\n        text:`Hola ${r.nombres},\\n\\nNotificación informativa: se ha reportado una nueva incidencia de laboratorio.\\n\\n`+\n             `Código:       ${codigo}\\nLaboratorio:  ${d.laboratorio}\\n`+\n             `Reportado por: ${d.reporta} (${d.reporta_correo})\\n`+\n             `Fecha:        ${d.fecha}\\nHora:         ${d.hora}\\n`+\n             `Descripción:  ${descripcion}\\n`+\n             `\\nIngrese al panel para gestionarla.\\n\\nInstituto Superior Tecnológico Yavirac` });\n    }\n  }\n  return [{ json: { _status:200, _body:{ ok:true, data:{ codigo, estado:'Pendiente' } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

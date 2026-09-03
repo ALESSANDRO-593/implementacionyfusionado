@@ -1,0 +1,440 @@
+<ion-header [translucent]="true">
+  <ion-toolbar color="primary">
+    <ion-title>
+      <div class="header-bot">
+        <div class="avatar-bot">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="header-textos">
+          <span class="nombre-bot">YaviBot</span>
+          <span class="subtitulo-bot">Mesa de Ayuda</span>
+        </div>
+      </div>
+    </ion-title>
+  </ion-toolbar>
+  <div class="banner-sin-conexion" *ngIf="sinConexion">
+    <ion-icon name="cloud-offline-outline"></ion-icon>
+    <span>Sin conexión a internet</span>
+  </div>
+</ion-header>
+
+<ion-content class="chat-content">
+  <div class="chat-lista">
+    <ng-container *ngFor="let m of mensajes">
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-texto'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="burbuja burbuja-bot">{{ m.texto }}</div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-escribiendo'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="burbuja burbuja-bot burbuja-escribiendo">
+          <span class="punto"></span><span class="punto"></span><span class="punto"></span>
+        </div>
+      </div>
+
+      <div class="fila fila-usuario" *ngIf="m.tipo === 'usuario-texto'">
+        <div class="burbuja burbuja-usuario">{{ m.texto }}</div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-opciones'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip
+            *ngFor="let op of opcionesMenu"
+            [class.deshabilitado]="!op.disponible"
+            (click)="seleccionarOpcion(op)">
+            <ion-icon [name]="op.icono"></ion-icon>
+            <ion-label>{{ op.etiqueta }}</ion-label>
+          </ion-chip>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-vehiculo-parqueadero'">
+        <div class="avatar-mini"><img src="assets/icon/yavibot-avatar.png" alt="YaviBot" /></div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip (click)="confirmarVehiculoRegistrado()"><ion-icon name="checkmark-circle-outline"></ion-icon><ion-label>Sí, confirmar vehículo</ion-label></ion-chip>
+          <ion-chip (click)="solicitarTipoVehiculo()"><ion-icon name="create-outline"></ion-icon><ion-label>Registrar / Usar otro vehículo</ion-label></ion-chip>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-tipos-vehiculo'">
+        <div class="avatar-mini"><img src="assets/icon/yavibot-avatar.png" alt="YaviBot" /></div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip (click)="seleccionarTipoVehiculo('AUTO')"><ion-icon name="car-outline"></ion-icon><ion-label>Automóvil</ion-label></ion-chip>
+          <ion-chip (click)="seleccionarTipoVehiculo('MOTO')"><ion-icon name="bicycle-outline"></ion-icon><ion-label>Motocicleta</ion-label></ion-chip>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-modalidades-parqueadero'">
+        <div class="avatar-mini"><img src="assets/icon/yavibot-avatar.png" alt="YaviBot" /></div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip (click)="seleccionarModalidadParqueadero('DIARIO')"><ion-icon name="today-outline"></ion-icon><ion-label>Diaria</ion-label></ion-chip>
+          <ion-chip (click)="seleccionarModalidadParqueadero('MENSUAL')"><ion-icon name="calendar-outline"></ion-icon><ion-label>Mensual</ion-label></ion-chip>
+        </div>
+      </div>
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-confirmacion-vehiculo'">
+        <div class="avatar-mini"><img src="assets/icon/yavibot-avatar.png" alt="YaviBot" /></div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip (click)="confirmarDatosVehiculo()"><ion-icon name="checkmark-circle-outline"></ion-icon><ion-label>Confirmar y generar ticket</ion-label></ion-chip>
+          <ion-chip (click)="corregirDatosVehiculo()"><ion-icon name="create-outline"></ion-icon><ion-label>Corregir datos</ion-label></ion-chip>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-ticket-parqueadero'">
+        <div class="avatar-mini"><img src="assets/icon/yavibot-avatar.png" alt="YaviBot" /></div>
+        <div class="tarjeta tarjeta-parqueadero" *ngIf="m.ticketParqueadero as ticket">
+          <div class="franja-superior" [class.franja-alerta]="ticket.estado === 'PENDIENTE'"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia"><ion-icon name="car-outline"></ion-icon></div>
+            <span class="titulo-certificado">{{ ticket.estado === 'APROBADO' ? 'Ticket de Parqueadero' : 'Solicitud de Ticket' }} {{ ticket.codigo }}</span>
+          </div>
+          <div class="grid-detalle">
+            <div class="campo"><span class="etiqueta">Placa</span><span class="valor">{{ ticket.placa }}</span></div>
+            <div class="campo"><span class="etiqueta">Tipo</span><span class="valor">{{ ticket.tipoVehiculo === 'AUTO' ? 'Automóvil' : 'Motocicleta' }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Modalidad</span><span class="valor">{{ ticket.modalidadEtiqueta }}</span></div>
+            <div class="campo campo-ancho" *ngIf="ticket.estado !== 'APROBADO'"><span class="etiqueta">Fecha de solicitud</span><span class="valor">{{ formatearFechaTicket(ticket.fechaSolicitud) }}</span></div>
+            <div class="campo campo-ancho" *ngIf="ticket.estado === 'APROBADO'"><span class="etiqueta">Vigencia</span><span class="valor">{{ formatearFechaTicket(ticket.vigenciaDesde) }} – {{ formatearFechaTicket(ticket.vigenciaHasta) }} · 23:59</span></div>
+          </div>
+          <span class="estado-parqueadero" [class.estado-parqueadero-aprobado]="ticket.estado === 'APROBADO'" [class.estado-parqueadero-rechazado]="ticket.estado === 'RECHAZADO'">{{ ticket.estado === 'PENDIENTE' ? '⏳ PENDIENTE DE APROBACIÓN' : ticket.estado === 'APROBADO' ? '✓ APROBADO' : '× RECHAZADO' }}</span>
+          <p class="nota-parqueadero" *ngIf="ticket.estado === 'PENDIENTE'">Acércate o contacta a Administración para solicitar la aprobación de tu ticket.</p>
+          <p class="nota-parqueadero" *ngIf="ticket.estado === 'RECHAZADO'">Motivo: {{ ticket.motivoRechazo || 'No especificado' }}</p>
+          <ion-button *ngIf="ticket.estado === 'APROBADO'" expand="block" color="secondary" (click)="descargarTicketParqueadero(ticket)"><ion-icon slot="start" name="download-outline"></ion-icon>Descargar ticket</ion-button>
+        </div>
+      </div>
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-preview-certificado'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-preview">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="school-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Verifica tus datos</span>
+          </div>
+          <p class="nombre-certificado">{{ m.estudiante?.nombres }} {{ m.estudiante?.apellidos }}</p>
+          <div class="grid-detalle">
+            <div class="campo"><span class="etiqueta">Cédula</span><span class="valor">{{ m.estudiante?.cedula }}</span></div>
+            <div class="campo"><span class="etiqueta">Nivel</span><span class="valor">{{ m.estudiante?.nivel }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Carrera</span><span class="valor">{{ m.estudiante?.carrera }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Periodo</span><span class="valor">{{ m.estudiante?.periodoActual }}</span></div>
+          </div>
+          <ion-button
+            expand="block"
+            color="secondary"
+            (click)="generarCertificado()"
+            [disabled]="estado === 'generando_certificado'">
+            <ion-icon slot="start" name="qr-code-outline"></ion-icon>
+            Generar certificado de matrícula
+          </ion-button>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-resultado-certificado'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-certificado">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="ribbon-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Certificado de Matrícula</span>
+          </div>
+          <p class="nombre-certificado">{{ m.certificado?.nombreCompleto }}</p>
+          <div class="grid-detalle">
+            <div class="campo"><span class="etiqueta">Cédula</span><span class="valor">{{ m.certificado?.cedula }}</span></div>
+            <div class="campo"><span class="etiqueta">Nivel</span><span class="valor">{{ m.certificado?.nivel }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Carrera</span><span class="valor">{{ m.certificado?.carrera }}</span></div>
+            <div class="campo"><span class="etiqueta">Periodo</span><span class="valor">{{ m.certificado?.periodoActual }}</span></div>
+            <div class="campo"><span class="etiqueta">Emisión</span><span class="valor">{{ m.certificado?.fechaEmision }}</span></div>
+          </div>
+          <div class="zona-qr">
+            <div class="marco-qr">
+              <img [src]="m.qrDataUrl" alt="Código QR único del certificado" />
+            </div>
+            <span class="codigo-qr">{{ m.certificado?.codigoUnico }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-tickets'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-tickets">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="list-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Seguimiento de Tickets</span>
+          </div>
+          <div class="fila-ticket" *ngFor="let t of m.tickets">
+            <div class="fila-ticket-encabezado">
+              <span class="ticket-id">{{ t.id }}</span>
+              <span
+                class="ticket-estado"
+                [class.estado-completado]="t.estado === 'COMPLETADO'"
+                [class.estado-proceso]="t.estado === 'EN_PROCESO'"
+                [class.estado-rechazado]="t.estado === 'RECHAZADO'">
+                {{ t.estado === 'EN_PROCESO' ? 'En proceso' : (t.estado === 'COMPLETADO' ? 'Completado' : 'Rechazado') }}
+              </span>
+            </div>
+            <span class="ticket-tipo">{{ t.tipo }}</span>
+            <span class="ticket-fecha">{{ t.fechaSolicitud }}</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-confirmacion-anulacion'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-anulacion">
+          <div class="franja-superior franja-alerta"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia insignia-alerta">
+              <ion-icon name="close-circle-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Solicitud de Anulación de Matrícula</span>
+          </div>
+          <p class="nombre-certificado">{{ m.estudiante?.nombres }} {{ m.estudiante?.apellidos }}</p>
+          <div class="grid-detalle">
+            <div class="campo"><span class="etiqueta">Cédula</span><span class="valor">{{ m.estudiante?.cedula }}</span></div>
+            <div class="campo"><span class="etiqueta">Nivel</span><span class="valor">{{ m.estudiante?.nivel }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Carrera</span><span class="valor">{{ m.estudiante?.carrera }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Periodo a anular</span><span class="valor">{{ m.estudiante?.periodoActual }}</span></div>
+          </div>
+          <p class="aviso-anulacion">
+            <ion-icon name="warning-outline"></ion-icon>
+            Esta solicitud será procesada por Secretaría en 3 a 5 días hábiles. Recibirás una confirmación por correo institucional.
+          </p>
+          <div class="botones-anulacion">
+            <ion-button expand="block" color="danger" (click)="confirmarAnulacion()" [disabled]="estado === 'procesando_anulacion'">
+              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+              Confirmar solicitud
+            </ion-button>
+            <ion-button expand="block" fill="outline" color="medium" (click)="cancelarAnulacion()" [disabled]="estado === 'procesando_anulacion'">
+              <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+              Cancelar
+            </ion-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-confirmacion-reseteo'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-anulacion">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="key-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Reseteo de Contraseña de Correo Institucional</span>
+          </div>
+          <p class="nombre-certificado">{{ m.estudiante?.nombres }} {{ m.estudiante?.apellidos }}</p>
+          <div class="grid-detalle">
+            <div class="campo"><span class="etiqueta">Cédula</span><span class="valor">{{ m.estudiante?.cedula }}</span></div>
+            <div class="campo campo-ancho"><span class="etiqueta">Correo institucional</span><span class="valor">{{ m.estudiante?.correoInstitucional }}</span></div>
+          </div>
+          <p class="aviso-anulacion">
+            <ion-icon name="information-circle-outline"></ion-icon>
+            El reseteo es inmediato. Recibirás tu nueva contraseña temporal en tu correo institucional apenas confirmes.
+          </p>
+          <div class="botones-anulacion">
+            <ion-button expand="block" color="secondary" (click)="confirmarReseteoCorreo()" [disabled]="estado === 'procesando_reseteo_correo'">
+              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+              Confirmar solicitud
+            </ion-button>
+            <ion-button expand="block" fill="outline" color="medium" (click)="cancelarReseteoCorreo()" [disabled]="estado === 'procesando_reseteo_correo'">
+              <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+              Cancelar
+            </ion-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-laboratorios'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-opciones">
+          <ion-chip *ngFor="let lab of m.laboratorios" (click)="seleccionarLaboratorio(lab)">
+            <ion-icon name="desktop-outline"></ion-icon>
+            <ion-label>{{ lab.nombre }}</ion-label>
+          </ion-chip>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-confirmacion-incidencia'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-anulacion">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="alert-circle-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Reporte de Incidencia de Laboratorio</span>
+          </div>
+          <p class="nombre-certificado">{{ m.laboratorioSeleccionado?.nombre }}</p>
+          <div class="grid-detalle">
+            <div class="campo campo-ancho"><span class="etiqueta">Descripción</span><span class="valor">{{ m.descripcionIncidencia }}</span></div>
+          </div>
+          <img *ngIf="m.fotoPreviewUrl" [src]="m.fotoPreviewUrl" alt="Foto de la incidencia" class="foto-incidencia-preview" />
+          <div class="botones-anulacion">
+            <ion-button expand="block" color="secondary" (click)="confirmarReporteIncidencia()" [disabled]="estado === 'reportando_incidencia'">
+              <ion-icon slot="start" name="checkmark-circle-outline"></ion-icon>
+              Confirmar reporte
+            </ion-button>
+            <ion-button expand="block" fill="outline" color="medium" (click)="cancelarReporteIncidencia()" [disabled]="estado === 'reportando_incidencia'">
+              <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+              Cancelar
+            </ion-button>
+          </div>
+        </div>
+      </div>
+
+      <div class="fila fila-bot" *ngIf="m.tipo === 'bot-resultado-incidencia'">
+        <div class="avatar-mini">
+          <img src="assets/icon/yavibot-avatar.png" alt="YaviBot" />
+        </div>
+        <div class="tarjeta tarjeta-tickets">
+          <div class="franja-superior"></div>
+          <div class="encabezado-certificado">
+            <div class="insignia">
+              <ion-icon name="document-text-outline"></ion-icon>
+            </div>
+            <span class="titulo-certificado">Reporte de Incidencia</span>
+          </div>
+          <div class="fila-ticket">
+            <div class="fila-ticket-encabezado">
+              <span class="ticket-id">{{ m.incidencia?.codigo }}</span>
+              <span class="ticket-estado estado-proceso">Pendiente</span>
+            </div>
+            <span class="ticket-tipo">{{ m.incidencia?.laboratorio }}</span>
+            <span class="ticket-fecha">{{ m.incidencia?.fechaReporte }}</span>
+          </div>
+        </div>
+      </div>
+
+    </ng-container>
+  </div>
+</ion-content>
+
+<ion-footer>
+  <ion-toolbar *ngIf="estado === 'esperando_cedula' || estado === 'consultando'">
+    <div class="tarjeta-recaptcha">
+      <div class="franja-superior"></div>
+      <div class="encabezado-recaptcha">
+        <ion-icon name="shield-checkmark-outline"></ion-icon>
+        <span>Verificación de seguridad</span>
+      </div>
+      <div id="recaptcha-cedula" class="recaptcha-contenedor"></div>
+    </div>
+    <ion-item lines="none" class="input-cedula">
+      <ion-input
+        placeholder="Ingresa tu número de cédula"
+        inputmode="numeric"
+        maxlength="10"
+        [(ngModel)]="cedulaIngresada"
+        [disabled]="estado === 'consultando'"
+        (keyup.enter)="enviarCedula()">
+      </ion-input>
+      <ion-button slot="end" class="boton-enviar-input" [disabled]="!puedeEnviarCedula" (click)="enviarCedula()">
+        <ion-icon slot="icon-only" name="send-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+    <p class="error-cedula" *ngIf="errorCedula">{{ errorCedula }}</p>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'esperando_ticket' || estado === 'validando_ticket'">
+    <ion-item lines="none" class="input-cedula">
+      <ion-input
+        placeholder="Ticket de verificación"
+        inputmode="numeric"
+        maxlength="6"
+        [(ngModel)]="ticketIngresado"
+        [disabled]="estado === 'validando_ticket'"
+        (keyup.enter)="verificarTicketIngresado()">
+      </ion-input>
+      <ion-button slot="end" class="boton-enviar-input" [disabled]="!puedeVerificarTicket" (click)="verificarTicketIngresado()">
+        <ion-icon slot="icon-only" name="send-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+    <p class="error-cedula" *ngIf="errorTicket">{{ errorTicket }}</p>
+    <ion-button
+      size="small"
+      class="boton-reenviar-ticket"
+      [disabled]="reenviandoTicket || estado === 'validando_ticket'"
+      (click)="reenviarTicket()">
+      <ion-icon slot="start" name="refresh-outline"></ion-icon>
+      Reenviar código
+    </ion-button>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'ingresando_placa'">
+    <ion-item lines="none" class="input-cedula"><ion-input placeholder="Número de placa" maxlength="15" [(ngModel)]="placaParqueadero" (ionInput)="placaParqueadero = placaParqueadero.toUpperCase()" (keyup.enter)="enviarPlacaParqueadero()"></ion-input><ion-button slot="end" class="boton-enviar-input" [disabled]="!puedeEnviarPlaca" (click)="enviarPlacaParqueadero()"><ion-icon slot="icon-only" name="send-outline"></ion-icon></ion-button></ion-item>
+    <p class="error-cedula" *ngIf="errorPlacaParqueadero">{{ errorPlacaParqueadero }}</p>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'menu' || estado === 'preview_certificado' || estado === 'seleccionando_laboratorio'">
+    <ion-button size="small" class="boton-volver-menu" (click)="volverAlMenu()" *ngIf="estado === 'preview_certificado' || estado === 'seleccionando_laboratorio'">
+      <ion-icon slot="start" name="arrow-back-outline"></ion-icon>
+      Volver al menú
+    </ion-button>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'escribiendo_incidencia'">
+    <ion-item lines="none" class="input-cedula">
+      <ion-textarea
+        placeholder="Describe la incidencia..."
+        [(ngModel)]="descripcionIncidencia"
+        [autoGrow]="true"
+        rows="2">
+      </ion-textarea>
+      <ion-button slot="end" class="boton-enviar-input" [disabled]="!puedeEnviarDescripcionIncidencia" (click)="enviarDescripcionIncidencia()">
+        <ion-icon slot="icon-only" name="send-outline"></ion-icon>
+      </ion-button>
+    </ion-item>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'adjuntando_foto'">
+    <div class="adjuntar-foto">
+      <ion-button size="small" class="boton-adjuntar-foto">
+        <ion-icon slot="start" name="camera-outline"></ion-icon>
+        Adjuntar foto
+        <input
+          type="file"
+          accept="image/jpeg,image/png"
+          capture="environment"
+          (change)="onFotoSeleccionada($event)" />
+      </ion-button>
+      <ion-button fill="clear" size="small" class="boton-continuar-sin-foto" (click)="continuarSinFoto()">
+        Continuar sin foto
+      </ion-button>
+    </div>
+    <p class="error-cedula" *ngIf="errorFoto">{{ errorFoto }}</p>
+  </ion-toolbar>
+
+  <ion-toolbar *ngIf="estado === 'finalizado'">
+    <ion-button expand="block" class="boton-nueva-conversacion" (click)="nuevaConsulta()">
+      <ion-icon slot="start" name="refresh-outline"></ion-icon>
+      Iniciar nueva conversación
+    </ion-button>
+  </ion-toolbar>
+</ion-footer>

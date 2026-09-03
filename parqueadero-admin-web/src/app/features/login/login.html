@@ -1,0 +1,56 @@
+<main class="login-page">
+  <section class="login-intro" aria-label="Módulo administrativo de parqueadero">
+    <div class="brand"><span>P</span><div><strong>Administración</strong><small>del Parqueadero</small></div></div>
+    <div class="intro-copy">
+      <span class="eyebrow">Módulo administrativo</span>
+      <h1>Administración del Parqueadero</h1>
+      <p>Administre usuarios invitados, vehículos, tickets y configuración desde un único lugar.</p>
+    </div>
+    <div class="security-note"><span>✓</span> Acceso protegido mediante sesión administrativa.</div>
+  </section>
+
+  <section class="login-panel">
+    <div class="login-card">
+      <span class="eyebrow">Acceso al sistema</span>
+      <h2>Iniciar sesión</h2>
+      <p>Ingrese con una cuenta activa del panel administrativo del parqueadero.</p>
+
+      <form [formGroup]="loginForm" (ngSubmit)="submit()">
+        <label>
+          <span>Cédula</span>
+          <input type="text" inputmode="numeric" maxlength="10" autocomplete="username" placeholder="10 dígitos" formControlName="cedula" (input)="loginError.set('')" />
+          @if (loginForm.controls.cedula.touched && loginForm.controls.cedula.invalid) {
+            <small>Ingrese una cédula válida de 10 dígitos.</small>
+          }
+        </label>
+
+        <label>
+          <span>Contraseña</span>
+          <div class="password-field">
+            <input [type]="passwordVisible() ? 'text' : 'password'" autocomplete="current-password" placeholder="Ingrese su contraseña" formControlName="password" (input)="loginError.set('')" />
+            <button type="button" (click)="passwordVisible.set(!passwordVisible())">{{ passwordVisible() ? 'Ocultar' : 'Ver' }}</button>
+          </div>
+          @if (loginForm.controls.password.touched && loginForm.controls.password.invalid) {
+            <small>La contraseña debe tener al menos 6 caracteres.</small>
+          }
+        </label>
+
+        @if (loginError()) {
+          <div class="login-error" role="alert">{{ loginError() }}</div>
+        }
+
+        <button class="submit-button" type="submit" [disabled]="isSubmitting()">
+          {{ isSubmitting() ? 'Verificando...' : 'Ingresar al panel' }}
+        </button>
+      </form>
+
+      @if (showLocalCredentials) {
+        <div class="local-access">
+          <strong>Acceso de desarrollo local</strong>
+          <span>Cédula: 0999999999</span>
+          <span>Contraseña: ParqueaderoLocal2026!</span>
+        </div>
+      }
+    </div>
+  </section>
+</main>

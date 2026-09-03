@@ -1,0 +1,148 @@
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Trazabilidad vehicular</span>
+    <h1>Vehículo temporal</h1>
+    <p>Registre reemplazos temporales sin modificar el vehículo habitual ni la autorización vigente.</p>
+  </div>
+  <button class="primary-button" type="button" (click)="openModal()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14" /></svg>
+    Registrar cambio temporal
+  </button>
+</header>
+
+@if (feedback()) {
+  <div class="feedback" role="status"><span>✓</span>{{ feedback() }}</div>
+}
+
+<section class="filter-card" aria-label="Búsqueda de cambios temporales">
+  <label class="search-field">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+    <span class="sr-only">Buscar cambios temporales</span>
+    <input type="search" placeholder="Buscar por cédula, nombre, placa o motivo..." (input)="updateSearch($event)" />
+  </label>
+</section>
+
+<section class="table-card">
+  <div class="table-heading">
+    <div>
+      <strong>Historial de cambios temporales</strong>
+      <span>{{ filteredChanges().length }} cambios registrados</span>
+    </div>
+    <small>Cada registro conserva el vehículo habitual y la autorización original.</small>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha de uso</th>
+          <th>Usuario</th>
+          <th>Vehículo habitual</th>
+          <th>Vehículo temporal</th>
+          <th>Motivo</th>
+          <th>Registrado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (change of filteredChanges(); track change.id) {
+          @let user = userFor(change.parkingUserId);
+          @let primaryVehicle = vehicleFor(change.primaryVehicleId);
+          <tr>
+            <td><strong class="period">{{ formatDate(change.startDate) }}</strong></td>
+            <td>
+              <strong class="user-name">{{ user?.fullName ?? 'Usuario no disponible' }}</strong>
+              <span class="secondary">{{ user?.type === 'ESTUDIANTE' ? 'Estudiante' : user?.type === 'DOCENTE' ? 'Docente' : user?.type === 'INVITADO' ? 'Invitado' : 'Tipo no disponible' }} · {{ user?.identification }}</span>
+            </td>
+            <td>
+              <strong class="plate">{{ primaryVehicle?.plate ?? '—' }}</strong>
+              <span class="secondary">Vehículo habitual</span>
+            </td>
+            <td>
+              <strong class="plate plate--temporary">{{ change.temporaryPlate }}</strong>
+              <span class="secondary">{{ vehicleTypeLabel(change.vehicleType) }}</span>
+            </td>
+            <td><span class="reason">{{ change.reason }}</span></td>
+            <td><span class="registered-date">{{ formatDate(change.registeredAt.slice(0, 10)) }}</span></td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty-state" colspan="6">
+              <strong>No encontramos cambios temporales</strong>
+              <span>Prueba con otro término de búsqueda.</span>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+
+@if (isModalOpen()) {
+  <div class="modal-backdrop" role="presentation" (click)="closeModal()">
+    <section class="modal issue-modal" role="dialog" aria-modal="true" aria-labelledby="temporary-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeModal()">×</button>
+      <span class="eyebrow">Reemplazo por fecha</span>
+      <h2 id="temporary-title">Registrar vehículo temporal</h2>
+      <p class="modal-description">El vehículo habitual se mantiene registrado y la autorización vigente no se elimina.</p>
+
+      <form [formGroup]="temporaryVehicleForm" (ngSubmit)="registerChange()">
+        <div class="form-grid">
+          <label class="full-field">
+            <span>Usuario con autorización vigente</span>
+            <select formControlName="parkingUserId" (change)="formError.set('')">
+              <option value="">Seleccione usuario</option>
+              @for (user of eligibleUsers(); track user.id) {
+                <option [value]="user.id">{{ user.fullName }} · {{ user.identification }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Placa temporal</span>
+            <input formControlName="temporaryPlate" placeholder="PBA-7745" maxlength="15" (input)="normalizePlate($event)" />
+          </label>
+
+          <label>
+            <span>Tipo de vehículo</span>
+            <select formControlName="vehicleType">
+              <option value="AUTO">Automóvil</option>
+              <option value="MOTO">Motocicleta</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Fecha de uso</span>
+            <input type="date" formControlName="useDate" [min]="today" (change)="formError.set('')" />
+          </label>
+
+          <label>
+            <span>Motivo</span>
+            <input formControlName="reason" placeholder="Ej. Pico y placa" maxlength="255" (input)="formError.set('')" />
+          </label>
+        </div>
+
+        @if (selectedAuthorization(); as authorization) {
+          @let primaryVehicle = selectedPrimaryVehicle();
+          <div class="authorization-summary">
+            <div><span>Autorización</span><strong>{{ authorization.code }}</strong></div>
+            <div><span>Vehículo habitual</span><strong>{{ primaryVehicle?.plate }} · {{ primaryVehicle?.brand }} {{ primaryVehicle?.model }}</strong></div>
+            <div><span>Vigencia</span><strong>{{ formatDate(authorization.startDate) }} — {{ formatDate(authorization.endDate) }}</strong></div>
+          </div>
+        } @else if (temporaryVehicleForm.controls.parkingUserId.value) {
+          <div class="form-message form-message--warning">La autorización no cubre la fecha seleccionada.</div>
+        }
+
+        @if (formError()) {
+          <div class="form-message form-message--error">{{ formError() }}</div>
+        }
+
+        <div class="trace-note"><strong>Trazabilidad:</strong> este cambio se añade al historial; no reemplaza ni elimina los registros originales.</div>
+
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeModal()">Cancelar</button>
+          <button class="primary-button" type="submit" [disabled]="!selectedAuthorization()">Registrar cambio</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

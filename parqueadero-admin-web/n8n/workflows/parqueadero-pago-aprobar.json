@@ -1,0 +1,259 @@
+{
+    "id":  "parkPaymentApproveV1",
+    "name":  "Parqueadero - Aprobar pago pendiente y generar ticket",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "PATCH",
+                                         "path":  "panel/parqueadero/pagos/aprobar",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000001",
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -540,
+                                       0
+                                   ],
+                      "webhookId":  "panel-parqueadero-pago-aprobar"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const crypto=require(\u0027crypto\u0027);const fail=(statusCode,error)=\u003e[{json:{ok:false,statusCode,error}}];const authorization=$json.headers?.authorization??\u0027\u0027;if(!authorization.startsWith(\u0027Bearer \u0027))return fail(401,\u0027Sesión requerida.\u0027);const secret=$env.JWT_SECRET;if(!secret)return fail(500,\u0027JWT_SECRET no está configurado.\u0027);try{const[h,p,s,x]=authorization.slice(7).trim().split(\u0027.\u0027);if(!h||!p||!s||x)throw new Error();const expected=crypto.createHmac(\u0027sha256\u0027,secret).update(`${h}.${p}`).digest(\u0027base64url\u0027),left=Buffer.from(s),right=Buffer.from(expected);if(left.length!==right.length||!crypto.timingSafeEqual(left,right))throw new Error();const payload=JSON.parse(Buffer.from(p,\u0027base64url\u0027).toString(\u0027utf8\u0027));if(!payload.exp||payload.exp\u003c=Math.floor(Date.now()/1000))throw new Error();const role=String(payload.rol??payload.role??\u0027\u0027).toUpperCase(),permissions=(Array.isArray(payload.permisos)?payload.permisos:[]).map(v=\u003eString(v).toLowerCase());if(role!==\u0027ADMINISTRADOR_PARKING\u0027\u0026\u0026!permissions.includes(\u0027parqueadero.gestionar\u0027))return fail(403,\u0027No tiene permisos para gestionar parqueadero.\u0027);const id=Number($json.body?.id),startDate=String($json.body?.startDate??\u0027\u0027);if(!Number.isInteger(id)||id\u003c=0)return fail(400,\u0027El pago seleccionado no es válido.\u0027);if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(startDate)||Number.isNaN(Date.parse(`${startDate}T00:00:00Z`)))return fail(400,\u0027Seleccione una fecha de vigencia válida.\u0027);return[{json:{ok:true,id,startDate}}];}catch{return fail(401,\u0027La sesión es inválida o ha vencido.\u0027);}"
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000002",
+                      "name":  "Autorizar y validar",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -320,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "ok",
+                                                                                   "leftValue":  "={{ $json.ok }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000003",
+                      "name":  "¿Solicitud autorizada?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -100,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "WITH target AS MATERIALIZED (\n  SELECT pp.id, pp.parqueadero_usuario_id, pm.modalidad\n  FROM public.parqueadero_pagos pp\n  JOIN public.parqueadero_modalidades pm ON pm.id = pp.modalidad_id\n  JOIN public.parqueadero_usuarios pu ON pu.id = pp.parqueadero_usuario_id AND pu.estado = \u0027ACTIVO\u0027\n  WHERE pp.id = $1::bigint AND pp.estado = \u0027PENDIENTE\u0027\n    AND NOT EXISTS (SELECT 1 FROM public.parqueadero_autorizaciones pa WHERE pa.pago_id = pp.id)\n  FOR UPDATE OF pp\n), updated_payment AS (\n  UPDATE public.parqueadero_pagos pp\n  SET estado = \u0027APROBADO\u0027, fecha_pago = now(), fecha_inicio = $2::date,\n      fecha_fin = CASE WHEN t.modalidad = \u0027MENSUAL\u0027 THEN CASE WHEN EXTRACT(DAY FROM $2::date) = 1 THEN (date_trunc(\u0027month\u0027, $2::date) + INTERVAL \u00271 month - 1 day\u0027)::date ELSE ($2::date + INTERVAL \u00271 month\u0027)::date END ELSE $2::date END\n  FROM target t WHERE pp.id = t.id\n  RETURNING pp.id, pp.parqueadero_usuario_id, pp.fecha_inicio, pp.fecha_fin\n), inserted_authorization AS (\n  INSERT INTO public.parqueadero_autorizaciones (parqueadero_usuario_id, pago_id, fecha_inicio, fecha_fin, estado)\n  SELECT parqueadero_usuario_id, id, fecha_inicio, fecha_fin, \u0027VIGENTE\u0027 FROM updated_payment\n  RETURNING id\n)\nSELECT\n  EXISTS(SELECT 1 FROM inserted_authorization) AS success,\n  (SELECT id::int FROM updated_payment) AS id,\n  (SELECT id::int FROM inserted_authorization) AS \"authorizationId\",\n  CASE WHEN NOT EXISTS(SELECT 1 FROM target) THEN \u0027El pago no existe, ya fue procesado, tiene un ticket o el usuario está inhabilitado.\u0027 END AS error,\n  CASE WHEN NOT EXISTS(SELECT 1 FROM target) THEN 409 ELSE 200 END AS \"statusCode\";",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.id, $json.startDate] }}"
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000004",
+                      "name":  "Aprobar pago y generar ticket (Postgres)",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       140,
+                                       -100
+                                   ],
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "approved",
+                                                                                   "leftValue":  "={{ $json.success === true }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000005",
+                      "name":  "¿Pago aprobado?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2,
+                      "position":  [
+                                       380,
+                                       -100
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { success: true, id: $json.id, authorizationId: $json.authorizationId, authorizationCode: \u0027YV-\u0027 + String($json.authorizationId).padStart(6, \u00270\u0027) } }}",
+                                         "options":  {
+                                                         "responseCode":  200
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000006",
+                      "name":  "Responder aprobación",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       620,
+                                       -180
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { error: $json.error } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json.statusCode }}"
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000007",
+                      "name":  "Responder conflicto",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       620,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { error: $json.error } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json.statusCode }}"
+                                                     }
+                                     },
+                      "id":  "c4000004-0004-4004-8004-000000000008",
+                      "name":  "Responder error",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       140,
+                                       120
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Autorizar y validar",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Autorizar y validar":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "¿Solicitud autorizada?",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "¿Solicitud autorizada?":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Aprobar pago y generar ticket (Postgres)",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ],
+                                                                    [
+                                                                        {
+                                                                            "node":  "Responder error",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Aprobar pago y generar ticket (Postgres)":  {
+                                                                         "main":  [
+                                                                                      [
+                                                                                          {
+                                                                                              "node":  "¿Pago aprobado?",
+                                                                                              "type":  "main",
+                                                                                              "index":  0
+                                                                                          }
+                                                                                      ]
+                                                                                  ]
+                                                                     },
+                        "¿Pago aprobado?":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Responder aprobación",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ],
+                                                             [
+                                                                 {
+                                                                     "node":  "Responder conflicto",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            }
+                    },
+    "pinData":  {
+
+                },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "active":  false
+}

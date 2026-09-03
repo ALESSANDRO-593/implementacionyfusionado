@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Actualizar Alerta",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "PATCH",
+        "path": "panel/alertas/actualizar",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-alertas-actualizar"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const parts = auth.slice(7).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\nfunction unauth(){ return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }]; }\nfunction forbidden(){ return [{ json: { _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'No autorizado' } } } }]; }\n\nconst { Client } = require('pg');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return unauth();\n// Solo quien tenga un rol con las alertas de laboratorio asignadas\nconst body = $json.body || {};\nconst id = Number(body.id || 0);\nconst estado = String(body.estado || '');\nconst observacion = body.observacion ? String(body.observacion) : null;\nif(!['Pendiente','En revisión','Resuelta'].includes(estado))\n  return [{ json: { _status:400, _body:{ ok:false, error:{ code:'VALIDACION', message:'Estado inválido' } } } }];\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const gestiona = (await client.query(\n    `SELECT 1 FROM rol_tipos_solicitud rt JOIN tipos_solicitud t ON t.id = rt.tipo_solicitud_id\n      WHERE rt.rol_id = $1 AND t.codigo = 'ALERTA_LAB'`, [Number(claims.rol_id)])).rowCount > 0;\n  if(!gestiona) return forbidden();\n  const cur = (await client.query('SELECT estado FROM alertas WHERE id=$1', [id])).rows[0];\n  if(!cur) return [{ json: { _status:404, _body:{ ok:false, error:{ code:'NO_ENCONTRADO', message:'Alerta no existe' } } } }];\n  await client.query('UPDATE alertas SET estado=$1, actualizado_en=now() WHERE id=$2', [estado, id]);\n  await client.query('INSERT INTO alerta_historial (alerta_id, estado_anterior, estado_nuevo, observacion, usuario_id) VALUES ($1,$2,$3,$4,$5)',\n    [id, cur.estado, estado, observacion, Number(claims.sub)]);\n  await client.query(\"INSERT INTO eventos (tipo, payload, origen) VALUES ('AlertaActualizada',$1,'panel')\",\n    [JSON.stringify({ alerta_id:id, estado })]);\n  return [{ json: { _status:200, _body:{ ok:true, data:{ id, estado } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,72 @@
+<app-panel-shell
+  active="dashboard"
+  icono="🏠"
+  titulo="Sistema de Seguimiento de Tickets"
+  subtitulo="Panel Administrativo"
+  [avisos]="pendientes()">
+
+  <!-- Bienvenida -->
+  <section class="welcome">
+    <div class="welcome__text">
+      <p class="welcome__hi">Bienvenido de nuevo</p>
+      <h2 class="welcome__name">{{ nombres }}</h2>
+      <p class="welcome__rol">{{ rolNombre }}</p>
+      <p class="welcome__msg">
+        Este es el resumen de los trámites que le corresponde atender. Desde
+        <b>Tickets</b> puede buscarlos, filtrarlos y responderlos.
+      </p>
+      <button class="pbtn pbtn--orange welcome__cta" (click)="verTickets()">Ir a Tickets →</button>
+    </div>
+    <img class="welcome__img" src="assets/chatbot-profesor.png" alt="" aria-hidden="true" />
+  </section>
+
+  <!-- Indicadores -->
+  <section class="stats">
+    <article class="stat stat--blue">
+      <span class="stat__icon">🎫</span>
+      <div><div class="stat__num">{{ total() }}</div><div class="stat__label">Total Tickets</div></div>
+    </article>
+    <article class="stat stat--orange">
+      <span class="stat__icon">🕓</span>
+      <div><div class="stat__num">{{ pendientes() }}</div><div class="stat__label">Pendientes</div></div>
+    </article>
+    <article class="stat stat--info">
+      <span class="stat__icon">⏳</span>
+      <div><div class="stat__num">{{ enProceso() }}</div><div class="stat__label">En proceso</div></div>
+    </article>
+    <article class="stat stat--green">
+      <span class="stat__icon">✅</span>
+      <div><div class="stat__num">{{ resueltos() }}</div><div class="stat__label">Resueltos</div></div>
+    </article>
+  </section>
+
+  <!-- Últimos tickets -->
+  <section class="pcard">
+    <div class="pcard__head">
+      <div>
+        <h2 class="pcard__title">🕘 Actividad reciente</h2>
+        <p class="pcard__hint">Los últimos trámites recibidos.</p>
+      </div>
+      <span class="ptop__spacer"></span>
+      <button class="pbtn pbtn--ghost pbtn--sm" (click)="verTickets()">Ver todos</button>
+    </div>
+
+    @if (cargando()) {
+      <p class="pmuted">Cargando…</p>
+    } @else if (recientes().length === 0) {
+      <p class="pmuted">Todavía no hay tickets para su rol.</p>
+    } @else {
+      <ul class="recientes">
+        @for (t of recientes(); track t.id) {
+          <li class="reciente" (click)="verDetalle(t.id)">
+            <span class="reciente__cod">{{ t.codigo }}</span>
+            <span class="reciente__quien">{{ t.solicitante }}</span>
+            <span class="reciente__tipo">{{ t.tipo }}</span>
+            <span class="reciente__fecha">{{ t.fecha }}</span>
+            <span class="pill" [class]="estadoClase(t.estado)">{{ t.estado }}</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</app-panel-shell>

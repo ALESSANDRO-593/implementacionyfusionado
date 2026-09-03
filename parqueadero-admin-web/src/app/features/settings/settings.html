@@ -1,0 +1,73 @@
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Administración del servicio</span>
+    <h1>Configuración</h1>
+    <p>Administre las tarifas y la capacidad disponible del parqueadero.</p>
+  </div>
+</header>
+
+@if (feedback()) { <div class="feedback" role="status"><span>✓</span>{{ feedback() }}</div> }
+@if (loadError()) {
+  <div class="api-message" role="alert"><span>{{ loadError() }}</span><button type="button" (click)="loadTariffs()">Reintentar</button></div>
+}
+
+<section class="settings-card">
+  <div class="section-heading">
+    <div><span class="eyebrow">Tarifas</span><h2>Modalidades de parqueadero</h2></div>
+    <div class="section-actions">
+      <button class="primary-button" type="button" (click)="createTariff()">+ Nueva tarifa</button>
+    </div>
+  </div>
+
+  <div class="tariff-grid">
+    @if (isLoading()) {
+      <div class="empty-state"><strong>Consultando tarifas...</strong><span>Espere un momento.</span></div>
+    } @else {
+      @for (tariff of tariffs(); track tariff.id) {
+        <article class="tariff-card" [class.tariff-card--inactive]="!tariff.active">
+          <div class="tariff-card__heading">
+            <span class="vehicle-icon">{{ tariff.vehicleType === 'AUTO' ? 'A' : 'M' }}</span>
+            <div><strong>{{ vehicleLabel(tariff.vehicleType) }}</strong><span>{{ modalityLabel(tariff.modality) }}</span></div>
+            <span class="status" [class.status--active]="tariff.active">{{ tariff.active ? 'Activa' : 'Inactiva' }}</span>
+          </div>
+          <div class="price">{{ tariff.amount.toLocaleString('es-EC', { style: 'currency', currency: 'USD' }) }}</div>
+          <small>{{ tariff.modality === 'DIARIO' ? 'Vigencia de un día' : 'Vigencia de 30 días' }}</small>
+          <button type="button" (click)="editTariff(tariff)">Editar tarifa</button>
+        </article>
+      } @empty {
+        <div class="empty-state"><strong>No hay tarifas registradas</strong></div>
+      }
+    }
+  </div>
+</section>
+
+<section class="settings-card capacity-section">
+  <div class="section-heading"><div><span class="eyebrow">Aforo</span><h2>Espacios del parqueadero</h2></div></div>
+  @if (capacity(); as value) {
+    <div class="capacity-stats"><div><span>Capacidad total</span><strong>{{ value.total }}</strong></div><div><span>Ocupados</span><strong>{{ value.occupied }}</strong></div><div><span>Disponibles</span><strong>{{ value.available }}</strong></div></div>
+  }
+  <form class="capacity-form" [formGroup]="capacityForm" (ngSubmit)="saveCapacity()"><label><span>Número total de espacios</span><input type="number" min="1" max="100000" formControlName="total" /></label><button class="primary-button" type="submit" [disabled]="isSavingCapacity()">{{ isSavingCapacity() ? 'Guardando...' : 'Guardar capacidad' }}</button></form>
+  @if (capacityError()) { <div class="form-error capacity-error">{{ capacityError() }}</div> }
+</section>
+
+@if (editorMode(); as mode) {
+  <div class="modal-backdrop" role="presentation" (click)="closeEditor()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="tariff-editor-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeEditor()">×</button>
+      <span class="eyebrow">{{ mode === 'create' ? 'Nueva tarifa' : 'Editar tarifa' }}</span>
+      <h2 id="tariff-editor-title">{{ mode === 'create' ? 'Agregar tarifa' : 'Actualizar tarifa' }}</h2>
+      <form [formGroup]="tariffForm" (ngSubmit)="saveTariff()">
+        <label><span>Modalidad</span><select formControlName="modality" [attr.disabled]="mode === 'edit' ? true : null"><option value="DIARIO">Diaria</option><option value="MENSUAL">Mensual</option></select></label>
+        <label><span>Tipo de vehículo</span><select formControlName="vehicleType" [attr.disabled]="mode === 'edit' ? true : null"><option value="AUTO">Automóvil</option><option value="MOTO">Motocicleta</option></select></label>
+        <label><span>Precio en dólares</span><input type="number" min="0" max="99999999.99" step="0.01" formControlName="amount" /></label>
+        <label><span>Estado</span><select formControlName="active"><option [ngValue]="true">Activa</option><option [ngValue]="false">Inactiva</option></select></label>
+        @if (tariffForm.touched && tariffForm.invalid) { <div class="form-error">Ingrese un precio válido.</div> }
+        @if (mutationError()) { <div class="form-error">{{ mutationError() }}</div> }
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeEditor()">Cancelar</button>
+          <button class="primary-button" type="submit" [disabled]="isSaving() || (mode === 'create' && allCombinationsConfigured())">{{ isSaving() ? 'Guardando...' : mode === 'create' ? 'Crear tarifa' : 'Guardar cambios' }}</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

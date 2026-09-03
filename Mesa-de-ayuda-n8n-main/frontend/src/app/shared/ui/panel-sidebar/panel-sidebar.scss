@@ -1,0 +1,37 @@
+/* El host debe ocupar toda la altura de la fila del grid; si no, al hacer
+   scroll el fondo del menú termina antes que el contenido y se ve cortado. */
+:host { display: block; background: var(--navy-900); }
+
+.sidebar {
+  background: linear-gradient(180deg, var(--navy-800) 0%, var(--navy-900) 100%);
+  color: #fff; padding: 24px 0;
+  /* Queda a la vista mientras el contenido se desplaza. */
+  position: sticky; top: 0; height: 100vh;
+  display: flex; flex-direction: column; overflow-y: auto;
+}
+.sidebar__brand { display: flex; align-items: center; justify-content: center; padding: 12px 24px 26px; }
+.sidebar__logo { width: 100%; max-width: 150px; height: auto; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, .25)); }
+
+.sidebar__nav { display: flex; flex-direction: column; flex: 1; }
+.navitem {
+  display: flex; align-items: center; gap: 12px; padding: 15px 26px; color: #cdd8ec;
+  cursor: pointer; font-weight: 600; font-size: 15px; border: none; background: none; text-align: left; width: 100%;
+  border-left: 4px solid transparent;
+}
+.navitem__icon { font-size: 16px; line-height: 1; }
+.navitem:hover { background: rgba(255, 255, 255, .06); color: #fff; }
+.navitem--active { background: var(--orange-500); color: #fff; border-left-color: #fff; }
+.navitem--active:hover { background: var(--orange-500); color: #fff; }
+
+/* "Cerrar Sesión" siempre al pie, para que el menú no quede a medias. */
+.navitem--salir { margin-top: auto; border-top: 1px solid rgba(255, 255, 255, .10); }
+
+@media (max-width: 980px) {
+  .sidebar { position: static; height: auto; flex-direction: row; align-items: center; padding: 12px; overflow-x: auto; }
+  .sidebar__brand { padding: 0 16px 0 8px; }
+  .sidebar__logo { max-width: 96px; }
+  .sidebar__nav { flex-direction: row; flex: 1; }
+  .navitem { width: auto; white-space: nowrap; padding: 10px 16px; border-left: none; border-bottom: 3px solid transparent; }
+  .navitem--active { border-left-color: transparent; border-bottom-color: #fff; }
+  .navitem--salir { margin-top: 0; margin-left: auto; border-top: none; }
+}

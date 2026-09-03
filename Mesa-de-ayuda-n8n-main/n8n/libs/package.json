@@ -1,0 +1,13 @@
+{
+  "name": "yavibot-n8n-libs",
+  "version": "1.0.0",
+  "description": "Librerías extra para los Code nodes de n8n (generación de QR y PDF de certificados). Instalar con: npm install (dentro de n8n/libs).",
+  "private": true,
+  "dependencies": {
+    "bcryptjs": "^3.0.3",
+    "nodemailer": "^9.0.5",
+    "pdfkit": "^0.15.0",
+    "pg": "^8.23.0",
+    "qrcode": "^1.5.4"
+  }
+}

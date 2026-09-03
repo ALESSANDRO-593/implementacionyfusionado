@@ -1,0 +1,107 @@
+<div class="landing">
+  <!-- Panel izquierdo (azul institucional) -->
+  <aside class="hero">
+    <img class="hero__logo" src="assets/logo-yavirac.png" alt="Instituto Superior Tecnológico Yavirac" />
+
+    <p class="hero__eyebrow">Instituto Superior Tecnológico Yavirac</p>
+    <h1 class="hero__title">Bienvenido</h1>
+    <p class="hero__subtitle">Organiza tu trámite académico</p>
+    <p class="hero__cta">AQUÍ</p>
+    <span class="hero__rule"></span>
+
+    <svg class="hero__arrow" viewBox="0 0 220 160" fill="none" aria-hidden="true">
+      <path d="M8 20 C 120 30, 200 60, 190 130" stroke="var(--orange-500)" stroke-width="4"
+            stroke-linecap="round" fill="none"/>
+      <path d="M168 120 L192 134 L182 108" stroke="var(--orange-500)" stroke-width="4"
+            stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </svg>
+
+    <img class="hero__mascota" src="assets/chatbot-mascota.png" alt="YaviBot, asistente virtual" />
+  </aside>
+
+  <!-- Panel derecho (crema) con el widget de chat -->
+  <section class="chatpane">
+    <div class="chat">
+      <header class="chat__header">
+        <div class="chat__brand">
+          <span class="chat__avatar">🤖</span>
+          <div>
+            <strong class="chat__name">YaviBot</strong>
+            <span class="chat__role">Asistente Virtual — Yavirac</span>
+          </div>
+        </div>
+        <span class="chat__logo">Yavi<b>Bot</b></span>
+      </header>
+
+      <div class="chat__body" #scroller>
+        @for (m of mensajes(); track $index) {
+          <div class="msg" [class.msg--user]="m.autor === 'user'">
+            @if (m.autor === 'bot') { <span class="msg__avatar">🤖</span> }
+            <div class="msg__col">
+              <div class="msg__bubble">{{ m.texto }}</div>
+              @if (m.ticket; as ticket) {
+                <article class="ticket-card"
+                         [class.ticket-card--approved]="ticket.state === 'APROBADO'"
+                         [class.ticket-card--rejected]="ticket.state === 'RECHAZADO'">
+                  <header class="ticket-card__header">
+                    <span>{{ ticket.state === 'APROBADO' ? 'Ticket de Parqueadero' : 'Solicitud de Ticket' }}</span>
+                    <strong>#{{ ticket.code }}</strong>
+                  </header>
+                  <dl class="ticket-card__details">
+                    <div><dt>Placa</dt><dd>{{ ticket.plate }}</dd></div>
+                    <div><dt>Tipo</dt><dd>{{ ticket.vehicleTypeLabel }}</dd></div>
+                    <div><dt>Modalidad</dt><dd>{{ ticket.modalityLabel }}</dd></div>
+                    @if (ticket.state === 'APROBADO') {
+                      <div><dt>Vigencia</dt><dd>{{ formatParkingDate(ticket.validFrom) }} – {{ formatParkingDate(ticket.validUntil) }} · 23:59</dd></div>
+                    } @else {
+                      <div><dt>Fecha de solicitud</dt><dd>{{ formatParkingDate(ticket.requestedAt) }}</dd></div>
+                    }
+                  </dl>
+                  <span class="ticket-card__badge">
+                    {{ ticket.state === 'PENDIENTE' ? '⏳ PENDIENTE DE APROBACIÓN' : ticket.state }}
+                  </span>
+                  @if (ticket.state === 'PENDIENTE') {
+                    <p class="ticket-card__note">Tu solicitud fue enviada a Administración. Acércate o contacta a Administración para solicitar la aprobación de tu ticket.</p>
+                  }
+                  @if (ticket.state === 'APROBADO') {
+                    <button class="ticket-card__download" (click)="descargarTicket(ticket)">📥 Descargar ticket</button>
+                  }
+                </article>
+              }
+              @if (m.opciones?.length) {
+                <div class="msg__opciones">
+                  @for (op of m.opciones; track op.valor) {
+                    <button class="chip" (click)="elegir(op)">{{ op.etiqueta }}</button>
+                  }
+                </div>
+              }
+              <span class="msg__hora">{{ m.hora }}</span>
+            </div>
+          </div>
+        }
+        @if (cargando()) {
+          <div class="msg"><span class="msg__avatar">🤖</span>
+            <div class="msg__bubble msg__bubble--typing"><span></span><span></span><span></span></div>
+          </div>
+        }
+      </div>
+
+      @if (esPasoCedula()) {
+        <div class="chat__captcha" aria-label="Verificación de seguridad">
+          <span>Verificación de seguridad</span>
+          <div id="recaptcha-mesa"></div>
+        </div>
+      }
+      <footer class="chat__input">
+        <input type="text" placeholder="Escriba su mensaje..."
+               [ngModel]="entrada()" (ngModelChange)="entrada.set($event)" (keyup.enter)="enviar()"
+               [disabled]="cargando()" aria-label="Mensaje" />
+        <button class="chat__send" (click)="enviar()" [disabled]="!puedeEnviar()" aria-label="Enviar">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none">
+            <path d="M4 12l16-7-7 16-2-7-7-2z" fill="currentColor"/>
+          </svg>
+        </button>
+      </footer>
+    </div>
+  </section>
+</div>

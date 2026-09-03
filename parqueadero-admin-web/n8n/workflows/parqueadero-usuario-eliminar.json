@@ -1,0 +1,95 @@
+{
+  "id": "parkUserDeleteV1",
+  "name": "Parqueadero - Eliminar usuario y registros relacionados",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "DELETE", "path": "panel/parqueadero/usuarios/eliminar", "responseMode": "responseNode", "options": {} },
+      "id": "a4000004-0004-4004-8004-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-500, 0],
+      "webhookId": "panel-parqueadero-usuario-eliminar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst fail = (statusCode, error) => [{ json: { ok: false, statusCode, error } }];\nconst authorization = $json.headers?.authorization ?? '';\nif (!authorization.startsWith('Bearer ')) return fail(401, 'Sesión requerida.');\nconst secret = $env.JWT_SECRET;\nif (!secret) return fail(500, 'JWT_SECRET no está configurado.');\ntry {\n  const token = authorization.slice(7).trim();\n  const [header, payloadPart, signature, extra] = token.split('.');\n  if (!header || !payloadPart || !signature || extra) throw new Error();\n  const expected = crypto.createHmac('sha256', secret).update(`${header}.${payloadPart}`).digest('base64url');\n  const left = Buffer.from(signature);\n  const right = Buffer.from(expected);\n  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) throw new Error();\n  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));\n  if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) throw new Error();\n  const role = String(payload.rol ?? '').toUpperCase();\n  const permissions = (Array.isArray(payload.permisos) ? payload.permisos : []).map(value => String(value).toLowerCase());\n  if (role !== 'ADMINISTRADOR_PARKING' && !permissions.includes('parqueadero.gestionar')) return fail(403, 'No tiene permisos para gestionar parqueadero.');\n  const id = Number($json.body?.id);\n  if (!Number.isInteger(id) || id <= 0) return fail(400, 'El identificador del usuario no es válido.');\n  return [{ json: { ok: true, id } }];\n} catch {\n  return fail(401, 'La sesión es inválida o ha vencido.');\n}"
+      },
+      "id": "a4000004-0004-4004-8004-000000000002",
+      "name": "Autorizar y validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" },
+        "options": {}
+      },
+      "id": "a4000004-0004-4004-8004-000000000003",
+      "name": "¿Solicitud autorizada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-60, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH target AS MATERIALIZED (\n  SELECT id FROM public.parqueadero_usuarios WHERE id = $1::bigint FOR UPDATE\n), deleted_accesses AS (\n  DELETE FROM public.parqueadero_accesos WHERE parqueadero_usuario_id IN (SELECT id FROM target) RETURNING id\n), deleted_temporary_vehicles AS (\n  DELETE FROM public.parqueadero_vehiculos_temporales WHERE parqueadero_usuario_id IN (SELECT id FROM target) RETURNING id\n), deleted_authorizations AS (\n  DELETE FROM public.parqueadero_autorizaciones WHERE parqueadero_usuario_id IN (SELECT id FROM target) RETURNING id\n), deleted_payments AS (\n  DELETE FROM public.parqueadero_pagos WHERE parqueadero_usuario_id IN (SELECT id FROM target) RETURNING id\n), deleted_vehicles AS (\n  DELETE FROM public.parqueadero_vehiculos WHERE parqueadero_usuario_id IN (SELECT id FROM target) RETURNING id\n), deleted_user AS (\n  DELETE FROM public.parqueadero_usuarios WHERE id IN (SELECT id FROM target) RETURNING id\n)\nSELECT\n  EXISTS(SELECT 1 FROM deleted_user) AS success,\n  (SELECT id::int FROM deleted_user) AS id,\n  (SELECT count(*)::int FROM deleted_accesses) AS \"deletedAccesses\",\n  (SELECT count(*)::int FROM deleted_temporary_vehicles) AS \"deletedTemporaryVehicles\",\n  (SELECT count(*)::int FROM deleted_authorizations) AS \"deletedAuthorizations\",\n  (SELECT count(*)::int FROM deleted_payments) AS \"deletedPayments\",\n  (SELECT count(*)::int FROM deleted_vehicles) AS \"deletedVehicles\";",
+        "options": { "queryReplacement": "={{ [$json.id] }}" }
+      },
+      "id": "a4000004-0004-4004-8004-000000000004",
+      "name": "Eliminar usuario y relaciones (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [180, -100],
+      "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "deleted", "leftValue": "={{ $json.success === true }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" },
+        "options": {}
+      },
+      "id": "a4000004-0004-4004-8004-000000000005",
+      "name": "¿Usuario eliminado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": { "responseCode": 200 } },
+      "id": "a4000004-0004-4004-8004-000000000006",
+      "name": "Responder eliminación",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [660, -180]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: 'Usuario no encontrado.' } }}", "options": { "responseCode": 404 } },
+      "id": "a4000004-0004-4004-8004-000000000007",
+      "name": "Responder no encontrado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [660, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "a4000004-0004-4004-8004-000000000008",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [180, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Autorizar y validar", "type": "main", "index": 0 }]] },
+    "Autorizar y validar": { "main": [[{ "node": "¿Solicitud autorizada?", "type": "main", "index": 0 }]] },
+    "¿Solicitud autorizada?": { "main": [[{ "node": "Eliminar usuario y relaciones (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Eliminar usuario y relaciones (Postgres)": { "main": [[{ "node": "¿Usuario eliminado?", "type": "main", "index": 0 }]] },
+    "¿Usuario eliminado?": { "main": [[{ "node": "Responder eliminación", "type": "main", "index": 0 }], [{ "node": "Responder no encontrado", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

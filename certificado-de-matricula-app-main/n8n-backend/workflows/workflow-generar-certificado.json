@@ -1,0 +1,710 @@
+{
+  "name": "App Matrícula - Generar Certificado",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Generar certificado de matrícula (esquema REAL)\n- Estudiante: JOIN a carreras (nombre) y a periodos_academicos DOS VECES (p = vigente=true para periodoActual, pi = periodo_ingreso_id del estudiante).\n- IDEMPOTENCIA: `certificados` tiene UNIQUE(estudiante_id, periodo_lectivo_codigo) (constraint ux_certificado_estudiante_periodo, agregado en esta instancia local). Si ya existe un certificado para ese estudiante+periodo, el workflow NO inserta uno nuevo: actualiza `fecha`/`hora` de la fila existente a la actual (mismo `qr_id`/QR de siempre) y responde con esos datos refrescados — así una reemisión nunca duplica QR, pero sí refleja la fecha de la última vez que se generó. La BD también garantiza la unicidad ante condiciones de carrera.\n- codigoUnico = qr_codigos.identificador (UUID real generado por gen_random_uuid(), con UNIQUE a nivel de BD).\n- El PDF real (con membrete oficial) se genera EN LA APP (certificado-pdf.service.ts, navegador) porque n8n no puede correr jsPDF/canvas. Este workflow solo crea/actualiza el registro y devuelve los datos; la app genera el PDF y lo envía en base64 al workflow separado \"Enviar Certificado PDF por Correo\" (enviar-certificado-pdf), que es quien realmente adjunta y envía el correo.\n- firmante_nombre/cargo van como literales (vienen de configuracion_sistema en el dump real).\n- No se actualiza qr_codigos.certificado_id (back-link redundante) para mantener el workflow simple; certificados.qr_id ya es la relación autoritativa.\n- Incluye manejo de preflight CORS (OPTIONS).",
+        "height": 440,
+        "width": 420
+      },
+      "id": "b1111111-1111-4111-8111-111111111111",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -280,
+        -260
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "generar-certificado-matricula",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "b2222222-2222-4222-8222-222222222222",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "webhookId": "generar-certificado-matricula",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credencial Header Auth (X-Api-Key)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "OPTIONS",
+        "path": "generar-certificado-matricula",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bfffffff-ffff-4fff-8fff-ffffffffffff",
+      "name": "Webhook (OPTIONS)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        400
+      ],
+      "webhookId": "generar-certificado-matricula-options"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "",
+        "options": {
+          "responseCode": 204,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, X-Api-Key"
+              }
+            ]
+          }
+        }
+      },
+      "id": "bfffffff-ffff-4fff-8fff-fffffffffffe",
+      "name": "Responder: CORS preflight",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT e.id AS estudiante_id, e.cedula, e.nombres, e.correo AS \"correoInstitucional\", c.nombre AS carrera, e.nivel, e.estado_matricula AS \"estadoMatricula\", e.modalidad, e.nivel_ingreso, p.codigo AS periodo_codigo, p.nombre AS \"periodoActual\", pi.codigo AS periodo_ingreso_codigo, pi.nombre AS periodo_ingreso_nombre FROM estudiantes e JOIN carreras c ON c.id = e.carrera_id LEFT JOIN periodos_academicos p ON p.vigente = true LEFT JOIN periodos_academicos pi ON pi.id = e.periodo_ingreso_id WHERE e.cedula = $1",
+        "options": {
+          "queryReplacement": "={{ [ $json.body.cedula ] }}"
+        }
+      },
+      "id": "b3333333-3333-4333-8333-333333333333",
+      "name": "Buscar Estudiante (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.estadoMatricula }}",
+              "rightValue": "MATRICULADO",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "b4444444-4444-4444-8444-444444444444",
+      "name": "¿Está matriculado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT 1 AS ok FROM otp_codigos WHERE cedula = $1 AND usado = true AND creado_en > NOW() - INTERVAL '20 minutes' ORDER BY creado_en DESC LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.cedula ] }}"
+        }
+      },
+      "id": "bses0001-ses0-4ses-8ses-ses000000001",
+      "name": "Verificar Sesión Validada (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        980,
+        40
+      ],
+      "alwaysOutputData": true,
+      "notes": "Exige un OTP usado=true en los últimos 20 min para esta cédula (mismo patrón que resetear-contrasena-correo.json) — sin esto, cualquiera con la cédula y la X-Api-Key podía generar el certificado saltándose el OTP.",
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "bses0002-ses0-4ses-8ses-ses000000002",
+      "name": "¿Tiene sesión válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        40
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Debes verificar tu identidad nuevamente antes de continuar.\" } }}",
+        "options": {
+          "responseCode": 403,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "bses0003-ses0-4ses-8ses-ses000000003",
+      "name": "Responder: Sin sesión válida",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "UPDATE certificados cert SET fecha = (NOW() AT TIME ZONE 'America/Guayaquil')::date, hora = (NOW() AT TIME ZONE 'America/Guayaquil')::time FROM qr_codigos qc WHERE qc.id = cert.qr_id AND cert.estudiante_id = $1 AND cert.periodo_lectivo_codigo = $2 RETURNING qc.identificador AS \"codigoUnico\", cert.fecha",
+        "options": {
+          "queryReplacement": "={{ [$('Buscar Estudiante (Postgres)').item.json.estudiante_id, $('Buscar Estudiante (Postgres)').item.json.periodo_codigo] }}"
+        }
+      },
+      "id": "b9999999-9999-4999-8999-999999999999",
+      "name": "Actualizar Certificado Existente (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        980,
+        -220
+      ],
+      "alwaysOutputData": true,
+      "notes": "Si ya existe un certificado para este estudiante+periodo, se REFRESCA su fecha/hora a la actual en vez de solo leerlo — así, al reimprimir/reenviar, tanto la app como la verificación por QR muestran la fecha de esta última generación, sin crear un QR nuevo (mismo qr_id de siempre). Si no existe ninguno, el UPDATE no afecta filas y (por alwaysOutputData) el nodo emite un item vacío, que la condición siguiente interpreta como 'no existe' y sigue al flujo de creación.",
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.codigoUnico }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "baaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "¿Ya existe certificado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const estudiante = $('Buscar Estudiante (Postgres)').item.json;\nconst cert = $json;\n\n// cert.fecha es una columna DATE pura (sin hora ni zona horaria): se formatea\n// leyendo directamente los componentes YYYY-MM-DD del string, sin pasar por\n// un objeto Date/Intl (evita que una conversión de zona horaria le reste un\n// día, ya que una fecha sin hora no tiene un instante real que convertir).\nconst MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];\nconst fechaStr = typeof cert.fecha === 'string' ? cert.fecha : cert.fecha.toISOString();\nconst [anio, mes, dia] = fechaStr.slice(0, 10).split('-').map(Number);\nconst fechaEmision = `${String(dia).padStart(2, '0')} de ${MESES[mes - 1]} de ${anio}`;\nconst urlVerificacion = `http://169.58.138.164/app/verificar-certificado/${cert.codigoUnico}`;\n\nreturn [{\n  json: {\n    codigoUnico: cert.codigoUnico,\n    cedula: estudiante.cedula,\n    nombreCompleto: estudiante.nombres,\n    carrera: estudiante.carrera,\n    nivel: estudiante.nivel,\n    periodoActual: estudiante.periodoActual,\n    modalidad: estudiante.modalidad,\n    nivelIngreso: estudiante.nivel_ingreso,\n    periodoIngresoCodigo: estudiante.periodo_ingreso_codigo,\n    periodoIngresoNombre: estudiante.periodo_ingreso_nombre,\n    fechaEmision,\n    urlVerificacion\n  }\n}];"
+      },
+      "id": "bacacaca-caca-4aca-8aca-acacacacacac",
+      "name": "Formatear Respuesta Existente",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b7777777-7777-4777-8777-777777777777",
+      "name": "Responder: Certificado existente",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        -220
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "INSERT INTO qr_codigos (estudiante_id, payload) VALUES ($1, '{\"tipo\": \"CERT_MATRICULA\"}'::jsonb) RETURNING id, identificador",
+        "options": {
+          "queryReplacement": "={{ [ $('Buscar Estudiante (Postgres)').item.json.estudiante_id ] }}"
+        }
+      },
+      "id": "bcccccc1-cccc-4ccc-8ccc-ccccccccccc1",
+      "name": "Crear QR (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1240,
+        -20
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "INSERT INTO certificados (estudiante_id, tipo, qr_id, fecha, hora, periodo_lectivo_codigo, periodo_lectivo_nombre, modalidad, periodo_ingreso_codigo, periodo_ingreso_nombre, nivel_ingreso, firmante_nombre, firmante_cargo) VALUES ($1, 'CERT_MATRICULA', $2, (NOW() AT TIME ZONE 'America/Guayaquil')::date, (NOW() AT TIME ZONE 'America/Guayaquil')::time, $3, $4, $5, $6, $7, $8, 'Mtr. Alexandra Gordon M.', 'Secretaria General (s)') RETURNING id, fecha",
+        "options": {
+          "queryReplacement": "={{ [$('Buscar Estudiante (Postgres)').item.json.estudiante_id, $json.id, $('Buscar Estudiante (Postgres)').item.json.periodo_codigo, $('Buscar Estudiante (Postgres)').item.json.periodoActual, $('Buscar Estudiante (Postgres)').item.json.modalidad, $('Buscar Estudiante (Postgres)').item.json.periodo_ingreso_codigo, $('Buscar Estudiante (Postgres)').item.json.periodo_ingreso_nombre, $('Buscar Estudiante (Postgres)').item.json.nivel_ingreso] }}"
+        }
+      },
+      "id": "b6666666-6666-4666-8666-666666666666",
+      "name": "Insertar Certificado (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1500,
+        -20
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const estudiante = $('Buscar Estudiante (Postgres)').item.json;\nconst qr = $('Crear QR (Postgres)').item.json;\nconst cert = $('Insertar Certificado (Postgres)').item.json;\n\n// cert.fecha es una columna DATE pura (sin hora ni zona horaria): se formatea\n// leyendo directamente los componentes YYYY-MM-DD del string, sin pasar por\n// un objeto Date/Intl (evita que una conversión de zona horaria le reste un\n// día, ya que una fecha sin hora no tiene un instante real que convertir).\nconst MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];\nconst fechaStr = typeof cert.fecha === 'string' ? cert.fecha : cert.fecha.toISOString();\nconst [anio, mes, dia] = fechaStr.slice(0, 10).split('-').map(Number);\nconst fechaEmision = `${String(dia).padStart(2, '0')} de ${MESES[mes - 1]} de ${anio}`;\nconst urlVerificacion = `http://169.58.138.164/app/verificar-certificado/${qr.identificador}`;\n\nreturn [{\n  json: {\n    codigoUnico: qr.identificador,\n    cedula: estudiante.cedula,\n    nombreCompleto: estudiante.nombres,\n    carrera: estudiante.carrera,\n    nivel: estudiante.nivel,\n    periodoActual: estudiante.periodoActual,\n    modalidad: estudiante.modalidad,\n    nivelIngreso: estudiante.nivel_ingreso,\n    periodoIngresoCodigo: estudiante.periodo_ingreso_codigo,\n    periodoIngresoNombre: estudiante.periodo_ingreso_nombre,\n    fechaEmision,\n    urlVerificacion\n  }\n}];"
+      },
+      "id": "b5555555-5555-4555-8555-555555555555",
+      "name": "Formatear Respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1760,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ {\n  \"codigoUnico\": $json.codigoUnico,\n  \"cedula\": $json.cedula,\n  \"nombreCompleto\": $json.nombreCompleto,\n  \"carrera\": $json.carrera,\n  \"nivel\": $json.nivel,\n  \"periodoActual\": $json.periodoActual,\n  \"modalidad\": $json.modalidad,\n  \"nivelIngreso\": $json.nivelIngreso,\n  \"periodoIngresoCodigo\": $json.periodoIngresoCodigo,\n  \"periodoIngresoNombre\": $json.periodoIngresoNombre,\n  \"fechaEmision\": $json.fechaEmision,\n  \"urlVerificacion\": $json.urlVerificacion\n} }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "bddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+      "name": "Responder: Certificado nuevo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2280,
+        -20
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT string_agg(correo, ',') AS correos FROM usuarios_panel WHERE rol_id = (SELECT id FROM roles WHERE codigo = 'RESP_CERTIFICADOS')",
+        "options": {}
+      },
+      "id": "c1111111-1111-4111-8111-111111111112",
+      "name": "Buscar Encargados de Certificados (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        2020,
+        220
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.correos }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c2222222-2222-4222-8222-222222222223",
+      "name": "¿Hay encargados con correo?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        2280,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "fromEmail": "mesadeayuda@yavirac.edu.ec",
+        "toEmail": "={{ $json.correos }}",
+        "subject": "=Nuevo Certificado de Matrícula emitido — {{ $('Formatear Respuesta').item.json.cedula }}",
+        "emailFormat": "text",
+        "text": "=🏫 INSTITUTO SUPERIOR TECNOLÓGICO DE TURISMO Y PATRIMONIO \"YAVIRAC\"\n\n🎓 Nuevo Certificado de Matrícula emitido\n\nSe emitió un nuevo Certificado de Matrícula desde YaviBot:\n\nCódigo único: {{ $('Formatear Respuesta').item.json.codigoUnico }}\nEstudiante: {{ $('Formatear Respuesta').item.json.nombreCompleto }} (cédula {{ $('Formatear Respuesta').item.json.cedula }})\nCarrera: {{ $('Formatear Respuesta').item.json.carrera }}, {{ $('Formatear Respuesta').item.json.nivel }}\nPeriodo: {{ $('Formatear Respuesta').item.json.periodoActual }}\nFecha de emisión: {{ $('Formatear Respuesta').item.json.fechaEmision }}\n\nEste aviso es solo informativo — el certificado ya fue entregado al estudiante, no requiere ninguna acción.\n\n📱 Enviado desde la app móvil · YaviBot\nInstituto Superior Tecnológico de Turismo y Patrimonio \"YAVIRAC\" · Quito, Ecuador\nwww.yavirac.edu.ec",
+        "options": {}
+      },
+      "id": "c3333333-3333-4333-8333-333333333334",
+      "name": "Enviar Aviso a Encargados (Correo)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "onError": "continueRegularOutput",
+      "position": [
+        2540,
+        220
+      ],
+      "notes": "CONFIGURAR: credenciales SMTP. Solo informativo (no bloquea nada) — avisa a quienes tengan el rol RESP_CERTIFICADOS (hoy dos placeholders, reemplazar por los contactos reales cuando se conozcan). onError=continueRegularOutput: un fallo de correo no debe afectar la respuesta del certificado, que ya se generó.",
+      "credentials": {
+        "smtp": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales SMTP (Mailtrap en pruebas)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"El estudiante no existe o no está matriculado en el periodo actual.\" } }}",
+        "options": {
+          "responseCode": 400,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "b8888888-8888-4888-8888-888888888888",
+      "name": "Responder: No matriculado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Buscar Estudiante (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (OPTIONS)": {
+      "main": [
+        [
+          {
+            "node": "Responder: CORS preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Estudiante (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Está matriculado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Está matriculado?": {
+      "main": [
+        [
+          {
+            "node": "Verificar Sesión Validada (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: No matriculado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Sesión Validada (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Tiene sesión válida?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Tiene sesión válida?": {
+      "main": [
+        [
+          {
+            "node": "Actualizar Certificado Existente (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: Sin sesión válida",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Actualizar Certificado Existente (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Ya existe certificado?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Ya existe certificado?": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta Existente",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Crear QR (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Respuesta Existente": {
+      "main": [
+        [
+          {
+            "node": "Responder: Certificado existente",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crear QR (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "Insertar Certificado (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insertar Certificado (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "Formatear Respuesta",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Formatear Respuesta": {
+      "main": [
+        [
+          {
+            "node": "Responder: Certificado nuevo",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Buscar Encargados de Certificados (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Encargados de Certificados (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Hay encargados con correo?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Hay encargados con correo?": {
+      "main": [
+        [
+          {
+            "node": "Enviar Aviso a Encargados (Correo)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        []
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}

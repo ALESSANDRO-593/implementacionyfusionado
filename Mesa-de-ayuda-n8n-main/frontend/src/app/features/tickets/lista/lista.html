@@ -1,0 +1,73 @@
+<app-panel-shell
+  active="tickets"
+  icono="🎫"
+  titulo="Tickets"
+  subtitulo="Seguimiento de trámites académicos"
+  [avisos]="pendientes()">
+
+  <section class="pcard">
+    <div class="pcard__head">
+      <div>
+        <h2 class="pcard__title">Todos los tickets</h2>
+        <p class="pcard__hint">Sólo aparecen los trámites que su rol tiene asignados.</p>
+      </div>
+    </div>
+
+    <div class="ptools">
+      <label class="psearch">
+        <span class="psearch__icon">🔎</span>
+        <input type="text" placeholder="Buscar por número, solicitante, tipo o responsable…"
+               [ngModel]="buscar()" (ngModelChange)="buscar.set($event)" />
+      </label>
+
+      <select class="pselect" [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event)">
+        <option value="Todos">Todos los estados</option>
+        <option value="Pendiente">Pendiente</option>
+        <option value="En Proceso">En Proceso</option>
+        <option value="Resuelto">Resuelto</option>
+      </select>
+
+      <select class="pselect pselect--corto" [ngModel]="porPagina()" (ngModelChange)="porPagina.set(+$event)">
+        <option [ngValue]="10">10 por página</option>
+        <option [ngValue]="20">20 por página</option>
+        <option [ngValue]="50">50 por página</option>
+      </select>
+    </div>
+
+    <div class="ptable-wrap">
+      <table class="ptable">
+        <thead>
+          <tr>
+            <th># Ticket</th><th>Solicitante</th><th>Tipo</th><th>Fecha</th>
+            <th>Estado</th><th>Responsable</th><th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          @if (cargando()) {
+            <tr><td colspan="7" class="ptable__empty">Cargando…</td></tr>
+          } @else if (visibles().length === 0) {
+            <tr><td colspan="7" class="ptable__empty">No hay tickets que coincidan con la búsqueda.</td></tr>
+          } @else {
+            @for (t of visibles(); track t.id) {
+              <tr>
+                <td class="ptable__code">{{ t.codigo }}</td>
+                <td>{{ t.solicitante }}</td>
+                <td>{{ t.tipo }}</td>
+                <td>{{ t.fecha }}</td>
+                <td><span class="pill" [class]="estadoClase(t.estado)">{{ t.estado }}</span></td>
+                <td>{{ t.responsable || '—' }}</td>
+                <td>
+                  <button class="pbtn pbtn--orange pbtn--sm" (click)="verDetalle(t.id)">Ver detalle</button>
+                </td>
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (!cargando()) {
+      <app-paginator [total]="filtrados().length" [porPagina]="porPagina()" [(pagina)]="pagina" />
+    }
+  </section>
+</app-panel-shell>

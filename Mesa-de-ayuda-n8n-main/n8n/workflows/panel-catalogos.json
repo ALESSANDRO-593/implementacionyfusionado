@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Catálogos Alertas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "panel/catalogos",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-catalogos"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const parts = auth.slice(7).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\nfunction unauth(){ return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }]; }\nfunction forbidden(){ return [{ json: { _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'No autorizado' } } } }]; }\n\nconst { Client } = require('pg');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return unauth();\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const labs = (await client.query('SELECT id, nombre, cantidad_equipos FROM laboratorios ORDER BY nombre')).rows;\n  return [{ json: { _status:200, _body:{ ok:true, data:{ laboratorios: labs } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

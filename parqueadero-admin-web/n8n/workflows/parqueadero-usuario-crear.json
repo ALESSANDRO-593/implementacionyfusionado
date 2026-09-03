@@ -1,0 +1,53 @@
+{
+  "id": "parkUserCreateV1",
+  "name": "Parqueadero - Crear usuario",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "panel/parqueadero/usuarios/crear", "responseMode": "responseNode", "options": {} },
+      "id": "a2000002-0002-4002-8002-000000000001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-540, 0], "webhookId": "panel-parqueadero-usuario-crear"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto=require('crypto');const fail=(statusCode,error)=>[{json:{ok:false,statusCode,error}}];const authorization=$json.headers?.authorization??'';if(!authorization.startsWith('Bearer '))return fail(401,'Sesión requerida.');const secret=$env.JWT_SECRET;if(!secret)return fail(500,'El servicio no está configurado.');try{const[header,payloadPart,signature,extra]=authorization.slice(7).trim().split('.');if(!header||!payloadPart||!signature||extra)throw new Error();const expected=crypto.createHmac('sha256',secret).update(`${header}.${payloadPart}`).digest('base64url'),left=Buffer.from(signature),right=Buffer.from(expected);if(left.length!==right.length||!crypto.timingSafeEqual(left,right))throw new Error();const payload=JSON.parse(Buffer.from(payloadPart,'base64url').toString('utf8'));if(!payload.exp||payload.exp<=Math.floor(Date.now()/1000))throw new Error();const role=String(payload.rol??'').toUpperCase(),permissions=(Array.isArray(payload.permisos)?payload.permisos:[]).map(String);if(role!=='ADMINISTRADOR_PARKING'&&!permissions.includes('parqueadero.gestionar'))return fail(403,'No tiene permisos.');const body=$json.body??{},identification=String(body.identification??'').trim(),fullName=String(body.fullName??'').trim(),institutionalEmail=String(body.institutionalEmail??'').trim().toLowerCase();if(String(body.type??'').toUpperCase()!=='INVITADO'||body.sourceId!=null)return fail(400,'Desde el panel sólo se registran invitados.');if(!/^\\d{10}$/.test(identification))return fail(400,'La cédula debe contener exactamente 10 dígitos.');if(fullName.length<3||fullName.length>150||!/^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$/.test(institutionalEmail))return fail(400,'Complete correctamente el nombre y el correo.');return[{json:{ok:true,type:'INVITADO',identification,fullName,institutionalEmail,sourceId:null,panelUserId:Number(payload.uid??payload.sub)}}];}catch{return fail(401,'La sesión es inválida o ha vencido.');}"
+      },
+      "id": "a2000002-0002-4002-8002-000000000002", "name": "Autorizar y validar", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-320, 0]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "ok", "leftValue": "={{$json.ok}}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "a2000002-0002-4002-8002-000000000003", "name": "¿Solicitud autorizada?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [-100, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH inserted AS (\n  INSERT INTO public.parqueadero_usuarios(\n    tipo_usuario,estudiante_id,docente_id,cedula_manual,nombres_manual,correo_manual,estado\n  )\n  SELECT 'INVITADO',NULL,NULL,$2,$3,$4,'ACTIVO'\n  WHERE NOT EXISTS (\n    SELECT 1 FROM public.parqueadero_usuarios\n    WHERE tipo_usuario='INVITADO' AND (cedula_manual=$2 OR lower(correo_manual)=lower($4))\n  )\n  RETURNING id\n)\nSELECT TRUE AS success,id::int AS id FROM inserted;",
+        "options": { "queryReplacement": "={{[$json.type,$json.identification,$json.fullName,$json.institutionalEmail,$json.sourceId]}}" }
+      },
+      "id": "a2000002-0002-4002-8002-000000000004", "name": "Crear usuario (Postgres)", "type": "n8n-nodes-base.postgres", "typeVersion": 2.6, "position": [140, -100], "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "created", "leftValue": "={{$json.success===true}}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "a2000002-0002-4002-8002-000000000005", "name": "¿Usuario creado?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [380, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{$json}}", "options": { "responseCode": 201 } },
+      "id": "a2000002-0002-4002-8002-000000000006", "name": "Responder usuario creado", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [620, -180]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ {error:'La persona ya está registrada o los datos no son válidos.'} }}", "options": { "responseCode": 409 } },
+      "id": "a2000002-0002-4002-8002-000000000007", "name": "Responder conflicto", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [620, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ {error:$json.error} }}", "options": { "responseCode": "={{$json.statusCode}}" } },
+      "id": "a2000002-0002-4002-8002-000000000008", "name": "Responder error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [140, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Autorizar y validar", "type": "main", "index": 0 }]] },
+    "Autorizar y validar": { "main": [[{ "node": "¿Solicitud autorizada?", "type": "main", "index": 0 }]] },
+    "¿Solicitud autorizada?": { "main": [[{ "node": "Crear usuario (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Crear usuario (Postgres)": { "main": [[{ "node": "¿Usuario creado?", "type": "main", "index": 0 }]] },
+    "¿Usuario creado?": { "main": [[{ "node": "Responder usuario creado", "type": "main", "index": 0 }], [{ "node": "Responder conflicto", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}, "settings": { "executionOrder": "v1" }, "active": false
+}

@@ -1,0 +1,48 @@
+// =====================================================================
+// YaviBot — Design tokens · Paleta institucional Yavirac
+//   Azul institucional: #1B3E7B · Naranja acento: #FF5100 · Naranja botón: #FF6923
+// =====================================================================
+:root {
+  // Marca — azul
+  --navy-900: #14305E; // extremo oscuro de gradientes
+  --navy-800: #1B3E7B; // AZUL INSTITUCIONAL (base)
+  --navy-700: #24508F; // headers de tabla / títulos
+  --navy-600: #1B3E7B; // superficies azules
+
+  // Marca — naranja
+  --orange-500: #FF5100; // NARANJA ACENTO (destacados, nav activo, reglas)
+  --orange-400: #FF6923; // NARANJA BOTÓN
+  --btn: var(--orange-400);       // color de los botones primarios
+  --btn-hover: #FF5100;           // hover de botones
+
+  // Superficies
+  --cream-bg: #F4F1EC; // fondo del chatbot
+  --panel-bg: #F5F7FB; // fondo del panel web
+  --surface:  #FFFFFF;
+  --surface-2: #F8FAFC;
+  --border:   #E4E8F0;
+
+  // Texto
+  --text-900: #1B2432;
+  --text-700: #374151;
+  --text-500: #6B7280;
+  --text-inverse: #FFFFFF;
+
+  // Estados (semánticos — independientes de la marca)
+  --danger:  #DB3444;
+  --warning: #FFB954;
+  --success: #2FA84F;
+  --info:    #2E9BE6;
+  --pending: #F5C518;
+
+  // Radios y sombras
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --shadow-card: 0 10px 30px rgba(20, 48, 94, 0.12);
+  --shadow-soft: 0 4px 14px rgba(20, 48, 94, 0.08);
+
+  // Tipografía
+  --font-sans: 'Inter', 'Segoe UI', Roboto, system-ui, -apple-system, sans-serif;
+}

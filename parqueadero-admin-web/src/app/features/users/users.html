@@ -1,0 +1,214 @@
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Gestión de accesos</span>
+    <h1>Usuarios del servicio</h1>
+    <p>Consulte y gestione los usuarios del parqueadero.</p>
+  </div>
+  <button class="primary-button" type="button" (click)="openRegistration()">
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M15 19c0-2.2-2-4-4.5-4S6 16.8 6 19M10.5 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM18 8v6m-3-3h6" />
+    </svg>
+    Nuevo usuario
+  </button>
+</header>
+
+@if (loadError()) {
+  <div class="api-message api-message--error" role="alert">
+    <span>{{ loadError() }}</span>
+    <button type="button" (click)="loadUsers()">Reintentar</button>
+  </div>
+}
+
+<section class="filter-card" aria-label="Filtros de usuarios">
+  <label class="search-field">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+    <span class="sr-only">Buscar usuarios</span>
+    <input type="search" placeholder="Buscar por cédula, nombre, correo o placa..." (input)="updateSearch($event)" />
+  </label>
+
+  <label>
+    <span class="sr-only">Filtrar por tipo</span>
+    <select (change)="updateTypeFilter($event)">
+      <option value="TODOS">Todos los tipos</option>
+      <option value="ESTUDIANTE">Estudiantes</option>
+      <option value="DOCENTE">Docentes</option>
+      <option value="INVITADO">Invitados</option>
+    </select>
+  </label>
+
+  <label>
+    <span class="sr-only">Filtrar por estado</span>
+    <select (change)="updateStatusFilter($event)">
+      <option value="TODOS">Todos los estados</option>
+      <option value="HABILITADO">Habilitados</option>
+      <option value="INHABILITADO">Inhabilitados</option>
+      <option value="SIN_AUTORIZACION">Sin autorización</option>
+    </select>
+  </label>
+</section>
+
+<section class="table-card">
+  <div class="table-summary">
+    <div><strong>{{ filteredUsers().length }}</strong> usuarios encontrados</div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Tipo</th>
+          <th>Vehículos</th>
+          <th>Pago vigente</th>
+          <th>Estado del servicio</th>
+          <th class="align-right">Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (isLoading()) {
+          <tr>
+            <td class="empty-state" colspan="6"><strong>Consultando usuarios...</strong><span>Espere un momento.</span></td>
+          </tr>
+        } @else {
+        @for (user of filteredUsers(); track user.id) {
+          <tr>
+            <td>
+              <strong class="user-name">{{ user.fullName }}</strong>
+              <span class="secondary">{{ user.identification }} · {{ user.institutionalEmail }}</span>
+            </td>
+            <td>
+              <span class="type-badge" [class.type-badge--teacher]="user.type === 'DOCENTE'" [class.type-badge--guest]="user.type === 'INVITADO'">
+                @if (user.type === 'ESTUDIANTE') {
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 10 9-5 9 5-9 5-9-5Z" /><path d="M7 12v5c3 2 7 2 10 0v-5" /></svg>
+                } @else if (user.type === 'DOCENTE') {
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="12" rx="1" /><path d="M8 20h8m-4-4v4" /></svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="3" /><path d="M5 20c.6-4 3-6 7-6s6.4 2 7 6" /></svg>
+                }
+                {{ user.type === 'ESTUDIANTE' ? 'Estudiante' : user.type === 'DOCENTE' ? 'Docente' : 'Invitado' }}
+              </span>
+            </td>
+            <td>
+              @if (user.vehicles.length) {
+                @for (vehicle of user.vehicles; track vehicle) {
+                  <span class="plate">{{ vehicle }}</span>
+                }
+              } @else {
+                <span class="muted">Sin vehículo</span>
+              }
+            </td>
+            <td>
+              @if (user.paymentPlan && user.paymentValidUntil) {
+                <strong class="payment-plan">{{ user.paymentPlan === 'MENSUAL' ? 'Mensual' : 'Diaria' }}</strong>
+                <span class="secondary secondary--block">hasta {{ formatDate(user.paymentValidUntil) }}</span>
+              } @else {
+                <span class="muted">Sin pago vigente</span>
+              }
+            </td>
+            <td>
+              <span
+                class="status-badge"
+                [class.status-badge--success]="user.serviceStatus === 'HABILITADO'"
+                [class.status-badge--danger]="user.serviceStatus === 'INHABILITADO'"
+                [class.status-badge--warning]="user.serviceStatus === 'SIN_AUTORIZACION'"
+              >
+                <span class="status-icon">{{ user.serviceStatus === 'HABILITADO' ? '✓' : user.serviceStatus === 'INHABILITADO' ? '×' : '!' }}</span>
+                {{ statusLabel(user.serviceStatus) }}
+              </span>
+            </td>
+            <td class="align-right">
+              <div class="row-actions">
+              <button
+                class="toggle"
+                type="button"
+                role="switch"
+                [class.toggle--active]="user.enabled"
+                [attr.aria-checked]="user.enabled"
+                [attr.aria-label]="(user.enabled ? 'Inhabilitar a ' : 'Habilitar a ') + user.fullName"
+                (click)="toggleEnabled(user.id)"
+              ><span></span></button>
+              <button class="delete-button" type="button" [attr.aria-label]="'Eliminar a ' + user.fullName" title="Eliminar usuario" (click)="openDeleteConfirmation(user)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3m3 0-1 13H7L6 7m4 4v5m4-5v5" /></svg>
+              </button>
+              </div>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty-state" colspan="6">
+              @if (hasActiveFilters()) {
+                <strong>No encontramos usuarios</strong>
+                <span>Prueba con otros términos o filtros.</span>
+              } @else {
+                <strong>Aún no hay usuarios de parqueadero</strong>
+                <span>Utilice “Nuevo usuario” para registrar el primero.</span>
+              }
+            </td>
+          </tr>
+        }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+
+@if (userPendingDeletion(); as user) {
+  <div class="modal-backdrop" role="presentation" (click)="closeDeleteConfirmation()">
+    <section class="modal delete-modal" role="alertdialog" aria-modal="true" aria-labelledby="delete-title" aria-describedby="delete-description" (click)="$event.stopPropagation()">
+      <div class="danger-icon" aria-hidden="true">!</div>
+      <span class="eyebrow eyebrow--danger">Acción irreversible</span>
+      <h2 id="delete-title">¿Eliminar a {{ user.fullName }}?</h2>
+      <p id="delete-description" class="modal-description">
+        Si elimina este usuario, se perderán permanentemente todos sus registros relacionados, incluidos sus vehículos, accesos, autorizaciones, tickets y todos los pagos que haya realizado.
+      </p>
+      <div class="delete-user-summary">
+        <strong>{{ user.fullName }}</strong>
+        <span>{{ user.identification }} · {{ user.institutionalEmail }}</span>
+      </div>
+      @if (deleteError()) {
+        <div class="form-message form-message--error" role="alert">{{ deleteError() }}</div>
+      }
+      <div class="modal-actions">
+        <button class="cancel-button" type="button" [disabled]="isDeleting()" (click)="closeDeleteConfirmation()">Cancelar</button>
+        <button class="danger-button" type="button" [disabled]="isDeleting()" (click)="confirmDelete()">
+          {{ isDeleting() ? 'Eliminando...' : 'Sí, eliminar todo' }}
+        </button>
+      </div>
+    </section>
+  </div>
+}
+
+@if (isModalOpen()) {
+  <div class="modal-backdrop" role="presentation" (click)="closeRegistration()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="registration-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeRegistration()">×</button>
+
+      <span class="eyebrow">Nuevo acceso</span>
+      <h2 id="registration-title">Registrar usuario</h2>
+      <p class="modal-description">Registre directamente los datos del nuevo usuario invitado.</p>
+
+      <form [formGroup]="guestForm" (ngSubmit)="registerGuest()">
+        <div class="creation-card">
+          <div class="creation-card__heading"><div><strong>Usuario invitado</strong><span>Complete los datos directamente, sin consulta institucional.</span></div><span class="new-badge">Nuevo</span></div>
+          <div class="form-grid">
+            <label><span>Cédula</span><input type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="10 dígitos" formControlName="identification" /></label>
+            <label><span>Nombre completo</span><input type="text" maxlength="150" placeholder="Nombres y apellidos" formControlName="fullName" /></label>
+            <label class="full-width"><span>Correo</span><input type="email" maxlength="150" placeholder="usuario@correo.com" formControlName="institutionalEmail" /></label>
+          </div>
+        </div>
+
+        @if (mutationError()) {
+          <div class="form-message form-message--error">{{ mutationError() }}</div>
+        }
+
+        @if (guestForm.controls.identification.touched && guestForm.controls.identification.invalid) { <div class="form-message form-message--error">La cédula debe contener exactamente 10 dígitos.</div> }
+        @else if (guestForm.touched && guestForm.invalid) { <div class="form-message form-message--error">Complete correctamente los campos obligatorios.</div> }
+
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeRegistration()">Cancelar</button>
+          <button class="primary-button" type="submit" [disabled]="guestForm.invalid || isSaving()">{{ isSaving() ? 'Guardando...' : 'Registrar invitado' }}</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

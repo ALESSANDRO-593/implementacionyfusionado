@@ -1,0 +1,252 @@
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Administración del parqueadero</span>
+    <h1>Gestión de tickets de parqueadero</h1>
+    <p>Registre tickets para invitados y resuelva solicitudes enviadas por docentes y estudiantes desde YaviBot.</p>
+  </div>
+  <button class="primary-button" type="button" (click)="openRegistration()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14" /></svg>
+    Nuevo ticket para invitado
+  </button>
+</header>
+
+@if (feedback()) {
+  <div class="feedback" role="status"><span>✓</span>{{ feedback() }}</div>
+}
+
+@if (loadError()) {
+  <div class="api-message api-message--error" role="alert">
+    <span>{{ loadError() }}</span><button type="button" (click)="loadData()">Reintentar</button>
+  </div>
+}
+
+<section class="filter-card" aria-label="Filtros de solicitudes de tickets">
+  <label class="search-field">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+    <span class="sr-only">Buscar solicitudes</span>
+    <input type="search" placeholder="Buscar por usuario, cédula o placa..." (input)="updateSearch($event)" />
+  </label>
+  <label>
+    <span class="sr-only">Filtrar por modalidad</span>
+    <select (change)="updateModalityFilter($event)">
+      <option value="TODAS">Toda modalidad</option>
+      <option value="DIARIO">Diaria</option>
+      <option value="MENSUAL">Mensual</option>
+    </select>
+  </label>
+  <label>
+    <span class="sr-only">Filtrar por estado</span>
+    <select (change)="updateStatusFilter($event)">
+      <option value="TODOS">Todo estado</option>
+      <option value="APROBADO">Aprobados</option>
+      <option value="PENDIENTE">Pendientes</option>
+      <option value="RECHAZADO">Rechazados</option>
+      <option value="ANULADO">Anulados</option>
+    </select>
+  </label>
+</section>
+
+<section class="table-card">
+  <div class="table-heading">
+    <div><strong>Solicitudes de tickets</strong><span>{{ filteredPayments().length }} registros encontrados</span></div>
+    <small>Las solicitudes de YaviBot requieren aprobación administrativa.</small>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Usuario</th>
+          <th>Modalidad</th>
+          <th>Periodo</th>
+          <th>Vehículo</th>
+          <th>Origen</th>
+          <th>Estado</th>
+          <th>Vigencia</th>
+          <th class="align-right">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (isLoading()) {
+          <tr><td class="empty-state" colspan="8"><strong>Consultando pagos...</strong><span>Espere un momento.</span></td></tr>
+        } @else {
+        @for (payment of filteredPayments(); track payment.id) {
+          @let user = userFor(payment.parkingUserId);
+          <tr>
+            <td>
+              <strong class="user-name">{{ user?.fullName ?? 'Usuario no disponible' }}</strong>
+              <span class="secondary">{{ user?.type === 'ESTUDIANTE' ? 'Estudiante' : user?.type === 'DOCENTE' ? 'Docente' : user?.type === 'INVITADO' ? 'Invitado' : 'Tipo no disponible' }} · {{ user?.identification }}</span>
+            </td>
+            <td><span class="modality-badge">{{ payment.modality === 'DIARIO' ? 'Diaria' : 'Mensual' }}</span></td>
+            <td>
+              <strong class="period">{{ formatDate(payment.startDate) }}</strong>
+              @if (payment.startDate !== payment.endDate) {
+                <span class="secondary">hasta {{ formatDate(payment.endDate) }}</span>
+              }
+            </td>
+            <td>
+              <span class="plate">{{ vehicleFor(payment.vehicleId)?.plate ?? '—' }}</span>
+            </td>
+            <td><strong>{{ user?.type === 'INVITADO' ? 'Panel administrativo' : 'YaviBot' }}</strong></td>
+            <td>
+              <span
+                class="status-badge"
+                [class.status-badge--approved]="payment.status === 'APROBADO'"
+                [class.status-badge--pending]="payment.status === 'PENDIENTE'"
+                [class.status-badge--rejected]="payment.status === 'RECHAZADO' || payment.status === 'ANULADO'"
+              >{{ payment.status === 'APROBADO' ? 'Aprobado' : payment.status === 'PENDIENTE' ? 'Pendiente' : payment.status === 'RECHAZADO' ? 'Rechazado' : 'Anulado' }}</span>
+            </td>
+            <td>
+              <span class="validity-badge" [class.validity-badge--current]="isCurrent(payment)">
+                {{ isCurrent(payment) ? 'Vigente' : 'No vigente' }}
+              </span>
+            </td>
+            <td class="align-right">
+              @if (payment.status === 'PENDIENTE') {
+                <button class="decision-button decision-button--approve" type="button" (click)="openDecision(payment, 'approve')">Aprobar</button>
+                <button class="decision-button decision-button--reject" type="button" (click)="openDecision(payment, 'reject')">Rechazar</button>
+              } @else if (payment.authorizationIssued) {
+                <span class="ticket-issued">Ticket generado</span>
+              } @else {
+                <span class="secondary">Sin acción</span>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty-state" colspan="8">
+              @if (hasActiveFilters()) {
+                <strong>No encontramos solicitudes</strong><span>Pruebe con otros términos o filtros.</span>
+              } @else {
+                <strong>Aún no hay solicitudes</strong><span>Los invitados se registran aquí; docentes y estudiantes las envían desde YaviBot.</span>
+              }
+            </td>
+          </tr>
+        }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+
+@if (pendingPayment(); as payment) {
+  @let user = userFor(payment.parkingUserId);
+  <div class="modal-backdrop" role="presentation" (click)="closeApproval()">
+    <section class="modal approval-modal" role="dialog" aria-modal="true" aria-labelledby="approval-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeApproval()">×</button>
+      <span class="eyebrow">Solicitud pendiente</span>
+      <h2 id="approval-title">{{ decision() === 'approve' ? 'Aprobar solicitud' : 'Rechazar solicitud' }}</h2>
+      <p class="modal-description">{{ decision() === 'approve' ? 'Confirme la fecha de inicio. Al aprobar se generará el ticket.' : 'Registre el motivo del rechazo para mantenerlo en el historial.' }}</p>
+      <div class="approval-summary">
+        <div><span>Usuario</span><strong>{{ user?.fullName }}</strong></div>
+        <div><span>Modalidad</span><strong>{{ payment.modality === 'DIARIO' ? 'Diaria' : 'Mensual' }}</strong></div>
+        <div><span>Vehículo</span><strong>{{ vehicleFor(payment.vehicleId)?.plate ?? '—' }}</strong></div>
+        <div><span>Origen</span><strong>{{ user?.type === 'INVITADO' ? 'Panel' : 'YaviBot' }}</strong></div>
+      </div>
+      <form [formGroup]="approvalForm" (ngSubmit)="approvePendingPayment()">
+        @if (decision() === 'approve') {
+          <div class="approval-date">
+            <span>Fecha de vigencia</span>
+            <div class="approval-date-control">
+              <input class="approval-date-text" type="text" inputmode="numeric" maxlength="10" autocomplete="off" placeholder="dd/mm/aaaa"
+                     [value]="approvalDateDisplay()" (input)="updateApprovalDate($event)" />
+              <button class="approval-calendar-button" type="button" (click)="openApprovalDatePicker()"
+                      aria-label="Abrir selector de fecha">&#128197;</button>
+              <input #approvalDatePicker class="approval-date-picker" type="date" tabindex="-1"
+                     [value]="approvalForm.controls.startDate.value"
+                     (change)="selectApprovalDate($event)"
+                     aria-label="Abrir selector de fecha" />
+            </div>
+            @if (approvalForm.controls.startDate.touched && approvalForm.controls.startDate.invalid) {
+              <small class="field-error">Ingresa una fecha válida en formato dd/mm/aaaa.</small>
+            }
+            <small class="validity-help">Vigente hasta: <strong>{{ formatDate(approvalEndDate()) }} · 23:59</strong></small>
+          </div>
+        }
+        @else { <label class="approval-date"><span>Motivo de rechazo</span><textarea maxlength="300" rows="4" formControlName="reason" placeholder="Explique por qué se rechaza la solicitud"></textarea></label> }
+        @if (mutationError()) { <div class="form-message form-message--error" role="alert">{{ mutationError() }}</div> }
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeApproval()">Cancelar</button>
+          <button class="primary-button" type="button" [disabled]="isSaving()" (click)="decision() === 'approve' ? approvePendingPayment() : rejectPendingPayment()">{{ isSaving() ? 'Procesando...' : decision() === 'approve' ? 'Aprobar y generar ticket' : 'Confirmar rechazo' }}</button>
+        </div>
+      </form>
+    </section>
+  </div>
+}
+
+@if (isModalOpen()) {
+  <div class="modal-backdrop" role="presentation" (click)="closeRegistration()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="payment-registration-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeRegistration()">×</button>
+      <span class="eyebrow">Nuevo registro</span>
+      <h2 id="payment-registration-title">Registrar ticket de invitado</h2>
+      <p class="modal-description">Sólo se muestran invitados habilitados. El ticket se aprueba al guardarlo.</p>
+
+      <form [formGroup]="paymentForm" (ngSubmit)="registerPayment()">
+        <div class="form-grid">
+          <label class="full-width">
+            <span>Usuario</span>
+            <select formControlName="parkingUserId" (change)="handleUserChange($event)">
+              <option value="">Seleccione un invitado</option>
+              @for (user of availableUsers(); track user.id) {
+                <option [value]="user.id">{{ user.fullName }} · {{ user.identification }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Modalidad</span>
+            <select formControlName="modality">
+              <option value="DIARIO">Diaria</option>
+              <option value="MENSUAL">Mensual</option>
+            </select>
+          </label>
+
+          <label>
+            <span>Fecha de uso</span>
+            <input type="date" formControlName="startDate" />
+          </label>
+
+          <div class="validity-preview full-width">
+            <span>Vigencia calculada</span>
+            <strong>{{ formatDate(paymentForm.controls.startDate.value) }} — {{ formatDate(calculatedEndDate()) }}</strong>
+            <em>{{ amountFor().toLocaleString('es-EC', { style: 'currency', currency: 'USD' }) }}</em>
+          </div>
+
+          <label class="full-width">
+            <span>Vehículo autorizado</span>
+            <select formControlName="vehicleId" [class.placeholder]="!selectedUserId()">
+              <option value="">{{ selectedUserId() ? 'Seleccione un vehículo' : 'Seleccione primero un usuario' }}</option>
+              @for (vehicle of availableVehicles(); track vehicle.id) {
+                <option [value]="vehicle.id">{{ vehicle.plate }} · {{ vehicle.brand }} {{ vehicle.model }}</option>
+              }
+            </select>
+          </label>
+        </div>
+
+        @if (paymentForm.touched && paymentForm.invalid) {
+          <div class="form-message form-message--error">Complete correctamente todos los campos obligatorios.</div>
+        }
+
+        @if (selectedUserId() && !availableVehicles().length) {
+          <div class="form-message form-message--error">El usuario seleccionado no tiene vehículos activos.</div>
+        }
+
+        @if (mutationError()) {
+          <div class="form-message form-message--error">{{ mutationError() }}</div>
+        }
+
+        <div class="manual-note">
+          <strong>Registro administrativo:</strong> docentes y estudiantes deben solicitar sus tickets desde YaviBot.
+        </div>
+
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeRegistration()">Cancelar</button>
+          <button class="primary-button" type="submit" [disabled]="isSaving() || !availableUsers().length">
+            {{ isSaving() ? 'Guardando...' : 'Registrar ticket' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

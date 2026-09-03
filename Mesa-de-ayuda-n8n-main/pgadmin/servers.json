@@ -1,0 +1,14 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "YaviBot",
+      "Group": "Servidores",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "yavibot",
+      "Username": "yavibot",
+      "SSLMode": "prefer",
+      "Comment": "Base de datos de YaviBot (contraseña: yavibot_dev_2026)"
+    }
+  }
+}

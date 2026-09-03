@@ -1,0 +1,47 @@
+{
+  "id": "parkPaymentsListV1",
+  "name": "Parqueadero - Listar pagos",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "GET", "path": "panel/parqueadero/pagos", "responseMode": "responseNode", "options": {} },
+      "id": "c2000002-0002-4002-8002-000000000001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-500, 0], "webhookId": "panel-parqueadero-pagos-listar"
+    },
+    {
+      "parameters": { "jsCode": "const crypto = require('crypto');\nconst fail=(statusCode,error)=>[{json:{authorized:false,statusCode,error}}]; const authorization=$json.headers?.authorization??''; if(!authorization.startsWith('Bearer ')) return fail(401,'Sesión requerida.'); const secret=$env.JWT_SECRET; if(!secret) return fail(500,'JWT_SECRET no está configurado.');\ntry { const token=authorization.slice(7).trim(); const [h,p,s,x]=token.split('.'); if(!h||!p||!s||x) throw new Error(); const expected=crypto.createHmac('sha256',secret).update(`${h}.${p}`).digest('base64url'); const left=Buffer.from(s),right=Buffer.from(expected); if(left.length!==right.length||!crypto.timingSafeEqual(left,right)) throw new Error(); const payload=JSON.parse(Buffer.from(p,'base64url').toString('utf8')); if(!payload.exp||payload.exp<=Math.floor(Date.now()/1000)) throw new Error(); const role=String(payload.rol??payload.role??'').toUpperCase(); const permissions=(Array.isArray(payload.permisos)?payload.permisos:[]).map(v=>String(v).toLowerCase()); if(role!=='ADMINISTRADOR_PARKING'&&!permissions.includes('parqueadero.ver')&&!permissions.includes('parqueadero.gestionar')) return fail(403,'No tiene permisos para consultar parqueadero.'); return [{json:{authorized:true}}]; } catch { return fail(401,'La sesión es inválida o ha vencido.'); }" },
+      "id": "c2000002-0002-4002-8002-000000000002", "name": "Validar sesión", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-280, 0]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "authorized", "leftValue": "={{ $json.authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "c2000002-0002-4002-8002-000000000003", "name": "¿Sesión autorizada?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [-60, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  pp.id::int AS \"id\",\n  pp.parqueadero_usuario_id::int AS \"parkingUserId\",\n  COALESCE(current_vehicle.id, 0)::int AS \"vehicleId\",\n  pm.modalidad AS \"modality\",\n  pp.monto::double precision AS \"amount\",\n  pp.fecha_inicio::text AS \"startDate\",\n  pp.fecha_fin::text AS \"endDate\",\n  pp.estado AS \"status\",\n  pp.metodo_pago AS \"method\",\n  pp.referencia AS \"reference\",\n  pp.motivo_rechazo AS \"rejectionReason\",\n  EXISTS (SELECT 1 FROM public.parqueadero_autorizaciones pa WHERE pa.pago_id = pp.id) AS \"authorizationIssued\"\nFROM public.parqueadero_pagos pp\nJOIN public.parqueadero_modalidades pm ON pm.id = pp.modalidad_id\nLEFT JOIN LATERAL (\n  SELECT pv.id\n  FROM public.parqueadero_vehiculos pv\n  WHERE pv.parqueadero_usuario_id = pp.parqueadero_usuario_id AND pv.activo = TRUE\n  ORDER BY pv.es_principal DESC, pv.id\n  LIMIT 1\n) current_vehicle ON TRUE\nORDER BY pp.fecha_pago DESC, pp.id DESC;",
+        "options": {}
+      },
+      "id": "c2000002-0002-4002-8002-000000000004", "name": "Consultar pagos (Postgres)", "type": "n8n-nodes-base.postgres", "typeVersion": 2.6, "position": [180, -100], "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": { "jsCode": "const data=$input.all().map(item=>item.json).filter(item=>item.id!=null); return [{json:{data}}];" },
+      "id": "c2000002-0002-4002-8002-000000000005", "name": "Formatear respuesta", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": { "responseCode": 200 } },
+      "id": "c2000002-0002-4002-8002-000000000006", "name": "Responder pagos", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [650, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "c2000002-0002-4002-8002-000000000007", "name": "Responder error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [180, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Validar sesión", "type": "main", "index": 0 }]] },
+    "Validar sesión": { "main": [[{ "node": "¿Sesión autorizada?", "type": "main", "index": 0 }]] },
+    "¿Sesión autorizada?": { "main": [[{ "node": "Consultar pagos (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Consultar pagos (Postgres)": { "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]] },
+    "Formatear respuesta": { "main": [[{ "node": "Responder pagos", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}, "settings": { "executionOrder": "v1" }, "active": false
+}

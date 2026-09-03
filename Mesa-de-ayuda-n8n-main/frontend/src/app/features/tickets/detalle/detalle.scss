@@ -1,0 +1,74 @@
+/* Migas de pan ----------------------------------------------------- */
+.crumbs { display: flex; align-items: center; gap: 8px; font-size: 13.5px; margin-bottom: 16px; }
+.crumbs__link { background: none; border: none; padding: 0; color: var(--navy-700); font: inherit; font-weight: 600; cursor: pointer; }
+.crumbs__link:hover { color: var(--orange-500); text-decoration: underline; }
+.crumbs__sep { color: var(--text-500); }
+.crumbs__actual { color: var(--text-500); }
+
+/* Cabecera del ticket ---------------------------------------------- */
+.dhead { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
+.dhead__left { flex: 1 1 300px; min-width: 0; }
+.dhead__id { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+.dhead__code { font-size: 24px; font-weight: 800; color: var(--navy-800); }
+.dhead__meta { color: var(--text-500); font-size: 13.5px; margin-top: 6px; }
+
+/* Indicador de avance */
+.pasos { display: flex; align-items: flex-start; gap: 0; list-style: none; margin: 0; padding: 0; }
+.paso { display: flex; flex-direction: column; align-items: center; gap: 8px; position: relative; padding: 0 26px; }
+.paso::before {                      /* línea que une los pasos */
+  content: ''; position: absolute; top: 9px; left: -50%; width: 100%; height: 2px; background: var(--border);
+}
+.paso:first-child::before { display: none; }
+.paso--hecho::before { background: var(--orange-500); }
+.paso__punto {
+  width: 20px; height: 20px; border-radius: 50%; background: var(--surface);
+  border: 2px solid var(--border); display: grid; place-items: center;
+  font-size: 11px; color: #fff; position: relative; z-index: 1;
+}
+.paso--hecho .paso__punto { background: var(--orange-500); border-color: var(--orange-500); }
+.paso__label { font-size: 12.5px; color: var(--text-500); white-space: nowrap; }
+.paso--hecho .paso__label { color: var(--orange-500); font-weight: 700; }
+
+/* Rejilla de tarjetas ---------------------------------------------- */
+.dgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 22px; }
+.dgrid .pcard + .pcard { margin-top: 0; }
+.dgrid--resp { grid-template-columns: 1.15fr .85fr; align-items: start; }
+
+/* Listas de datos -------------------------------------------------- */
+.datos { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 20px; margin: 18px 0 0; }
+.dato { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.dato--full { grid-column: 1 / -1; }
+.dato dt { color: var(--text-500); font-size: 12.5px; }
+.dato dd { margin: 0; color: var(--text-700); font-size: 14px; word-break: break-word; }
+.dato--fuerte { font-weight: 700; color: var(--text-900) !important; }
+
+.descripcion { margin-top: 14px; color: var(--text-700); font-size: 14.5px; line-height: 1.6; white-space: pre-wrap; }
+
+/* Acciones --------------------------------------------------------- */
+.dacciones { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 22px; }
+.pselect--full { width: 100%; }
+
+/* Historial -------------------------------------------------------- */
+.linea { list-style: none; margin: 18px 0 0; padding: 0 0 0 6px; }
+.linea__item { position: relative; padding: 0 0 22px 22px; border-left: 2px solid var(--border); }
+.linea__item:last-child { border-left-color: transparent; padding-bottom: 0; }
+.linea__punto {
+  position: absolute; left: -7px; top: 3px; width: 12px; height: 12px; border-radius: 50%;
+  background: var(--orange-500); border: 2px solid var(--surface);
+}
+.linea__cab { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.linea__estado { font-weight: 700; color: var(--navy-800); font-size: 14px; }
+.linea__fecha  { color: var(--text-500); font-size: 12.5px; margin-left: auto; }
+.linea__cambio { color: var(--text-500); font-size: 13px; margin-top: 2px; }
+.linea__resp {
+  margin-top: 8px; background: var(--surface-2); border-radius: var(--radius-md);
+  padding: 10px 12px; color: var(--text-700); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap;
+}
+
+@media (max-width: 1100px) {
+  .dgrid, .dgrid--resp { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .datos { grid-template-columns: 1fr; }
+  .pasos { display: none; }
+}

@@ -1,0 +1,29 @@
+<div class="verpage">
+  <div class="vercard card">
+    <div class="vercard__brand">
+      <span class="vercard__cap">🎓</span>
+      <strong>YAVIRAC</strong>
+    </div>
+    <p class="vercard__lead">Verificación de certificado</p>
+
+    @if (cargando()) {
+      <p class="vercard__msg">Verificando…</p>
+    } @else if (error()) {
+      <div class="badge badge--err">⚠️</div>
+      <h2 class="vercard__title">No se pudo verificar</h2>
+      <p class="vercard__msg">Intente nuevamente más tarde.</p>
+    } @else if (resultado()?.valido) {
+      <div class="badge badge--ok">✔</div>
+      <h2 class="vercard__title">Certificado auténtico</h2>
+      <div class="vercard__data">
+        <div><span>Estudiante</span><b>{{ resultado()?.estudiante }}</b></div>
+        <div><span>Documento</span><b>{{ resultado()?.tipo }}</b></div>
+        <div><span>Fecha de emisión</span><b>{{ resultado()?.fecha }}</b></div>
+      </div>
+    } @else {
+      <div class="badge badge--err">✖</div>
+      <h2 class="vercard__title">Certificado no válido</h2>
+      <p class="vercard__msg">El código no corresponde a un certificado emitido por la institución.</p>
+    }
+  </div>
+</div>

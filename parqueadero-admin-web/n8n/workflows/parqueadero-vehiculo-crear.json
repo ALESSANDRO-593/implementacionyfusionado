@@ -1,0 +1,258 @@
+{
+    "id":  "parkVehicleCreateV1",
+    "name":  "Parqueadero - Crear vehículo",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "panel/parqueadero/vehiculos/crear",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000001",
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -540,
+                                       0
+                                   ],
+                      "webhookId":  "panel-parqueadero-vehiculo-crear"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const crypto = require(\u0027crypto\u0027);\nconst fail = (statusCode, error) =\u003e [{ json: { ok: false, statusCode, error } }];\nconst authorization = $json.headers?.authorization ?? \u0027\u0027;\nif (!authorization.startsWith(\u0027Bearer \u0027)) return fail(401, \u0027Sesión requerida.\u0027);\nconst secret = $env.JWT_SECRET;\nif (!secret) return fail(500, \u0027JWT_SECRET no está configurado.\u0027);\ntry {\n  const token = authorization.slice(7).trim();\n  const [header, payloadPart, signature, extra] = token.split(\u0027.\u0027);\n  if (!header || !payloadPart || !signature || extra) throw new Error();\n  const expected = crypto.createHmac(\u0027sha256\u0027, secret).update(`${header}.${payloadPart}`).digest(\u0027base64url\u0027);\n  const left = Buffer.from(signature);\n  const right = Buffer.from(expected);\n  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) throw new Error();\n  const payload = JSON.parse(Buffer.from(payloadPart, \u0027base64url\u0027).toString(\u0027utf8\u0027));\n  if (!payload.exp || payload.exp \u003c= Math.floor(Date.now() / 1000)) throw new Error();\n  const role = String(payload.rol ?? payload.role ?? \u0027\u0027).toUpperCase();\n  const permissions = (Array.isArray(payload.permisos) ? payload.permisos : []).map(value =\u003e String(value).toLowerCase());\n  if (role !== \u0027ADMINISTRADOR_PARKING\u0027 \u0026\u0026 !permissions.includes(\u0027parqueadero.gestionar\u0027)) return fail(403, \u0027No tiene permisos para gestionar parqueadero.\u0027);\n\n  const body = $json.body ?? {};\n  const parkingUserId = Number(body.parkingUserId);\n  const plate = String(body.plate ?? \u0027\u0027).trim().toUpperCase().replace(/\\s+/g, \u0027\u0027);\n  const type = String(body.type ?? \u0027\u0027).toUpperCase();\n  const brand = null;\n  const model = null;\n  const color = null;\n  const isPrimary = true;\n  if (!Number.isInteger(parkingUserId) || parkingUserId \u003c= 0) return fail(400, \u0027Seleccione un usuario válido.\u0027);\n  if (!/^[A-Z0-9-]{5,15}$/.test(plate)) return fail(400, \u0027Ingrese una placa válida.\u0027);\n  if (![\u0027AUTO\u0027, \u0027MOTO\u0027].includes(type)) return fail(400, \u0027Seleccione un tipo de vehículo válido.\u0027);\n  return [{ json: { ok: true, parkingUserId, plate, type, brand, model, color, isPrimary } }];\n} catch {\n  return fail(401, \u0027La sesión es inválida o ha vencido.\u0027);\n}"
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000002",
+                      "name":  "Autorizar y validar",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -320,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "ok",
+                                                                                   "leftValue":  "={{ $json.ok }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000003",
+                      "name":  "¿Solicitud autorizada?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2,
+                      "position":  [
+                                       -100,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "WITH eligible_user AS (\n  SELECT id\n  FROM public.parqueadero_usuarios\n  WHERE id = $1::bigint AND estado = \u0027ACTIVO\u0027 AND tipo_usuario = \u0027INVITADO\u0027\n), plate_conflict AS (\n  SELECT id\n  FROM public.parqueadero_vehiculos\n  WHERE UPPER(placa) = UPPER($2)\n), primary_choice AS (\n  SELECT CASE\n    WHEN NOT EXISTS (\n      SELECT 1 FROM public.parqueadero_vehiculos pv\n      WHERE pv.parqueadero_usuario_id = $1::bigint AND pv.activo = TRUE\n    ) THEN TRUE\n    ELSE $7::boolean\n  END AS is_primary\n), demoted AS (\n  UPDATE public.parqueadero_vehiculos pv\n  SET es_principal = FALSE, actualizado_en = now()\n  WHERE pv.parqueadero_usuario_id = $1::bigint\n    AND pv.activo = TRUE\n    AND pv.es_principal = TRUE\n    AND (SELECT is_primary FROM primary_choice) = TRUE\n    AND EXISTS (SELECT 1 FROM eligible_user)\n    AND NOT EXISTS (SELECT 1 FROM plate_conflict)\n  RETURNING pv.id\n), inserted AS (\n  INSERT INTO public.parqueadero_vehiculos (\n    parqueadero_usuario_id, placa, tipo_vehiculo, marca, modelo, color, es_principal, activo\n  )\n  SELECT eu.id, UPPER($2), $3, $4, $5, $6, pc.is_primary, TRUE\n  FROM eligible_user eu\n  CROSS JOIN primary_choice pc\n  CROSS JOIN (SELECT count(*) FROM demoted) dependency\n  WHERE NOT EXISTS (SELECT 1 FROM plate_conflict)\n  RETURNING id, es_principal\n)\nSELECT\n  COALESCE((SELECT TRUE FROM inserted LIMIT 1), FALSE) AS success,\n  (SELECT id::int FROM inserted LIMIT 1) AS id,\n  (SELECT es_principal FROM inserted LIMIT 1) AS \"isPrimary\",\n  CASE\n    WHEN NOT EXISTS (SELECT 1 FROM eligible_user) THEN \u0027El usuario no existe, está inhabilitado o no es invitado.\u0027\n    WHEN EXISTS (SELECT 1 FROM plate_conflict) THEN \u0027La placa ingresada ya está registrada.\u0027\n    ELSE NULL\n  END AS error,\n  CASE\n    WHEN NOT EXISTS (SELECT 1 FROM eligible_user) THEN 404\n    WHEN EXISTS (SELECT 1 FROM plate_conflict) THEN 409\n    ELSE 201\n  END AS \"statusCode\";",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.parkingUserId, $json.plate, $json.type, $json.brand, $json.model, $json.color, $json.isPrimary] }}"
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000004",
+                      "name":  "Crear vehículo (Postgres)",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       140,
+                                       -100
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict"
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "created",
+                                                                                   "leftValue":  "={{ $json.success }}",
+                                                                                   "rightValue":  true,
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "equals"
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000005",
+                      "name":  "¿Vehículo creado?",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2,
+                      "position":  [
+                                       380,
+                                       -100
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { success: true, id: $json.id, isPrimary: $json.isPrimary } }}",
+                                         "options":  {
+                                                         "responseCode":  201
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000006",
+                      "name":  "Responder vehículo creado",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       620,
+                                       -180
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { error: $json.error } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json.statusCode }}"
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000007",
+                      "name":  "Responder conflicto",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       620,
+                                       0
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { error: $json.error } }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json.statusCode }}"
+                                                     }
+                                     },
+                      "id":  "b2000002-0002-4002-8002-000000000008",
+                      "name":  "Responder error",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.4,
+                      "position":  [
+                                       140,
+                                       120
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Autorizar y validar",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Autorizar y validar":  {
+                                                    "main":  [
+                                                                 [
+                                                                     {
+                                                                         "node":  "¿Solicitud autorizada?",
+                                                                         "type":  "main",
+                                                                         "index":  0
+                                                                     }
+                                                                 ]
+                                                             ]
+                                                },
+                        "¿Solicitud autorizada?":  {
+                                                       "main":  [
+                                                                    [
+                                                                        {
+                                                                            "node":  "Crear vehículo (Postgres)",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ],
+                                                                    [
+                                                                        {
+                                                                            "node":  "Responder error",
+                                                                            "type":  "main",
+                                                                            "index":  0
+                                                                        }
+                                                                    ]
+                                                                ]
+                                                   },
+                        "Crear vehículo (Postgres)":  {
+                                                          "main":  [
+                                                                       [
+                                                                           {
+                                                                               "node":  "¿Vehículo creado?",
+                                                                               "type":  "main",
+                                                                               "index":  0
+                                                                           }
+                                                                       ]
+                                                                   ]
+                                                      },
+                        "¿Vehículo creado?":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Responder vehículo creado",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ],
+                                                               [
+                                                                   {
+                                                                       "node":  "Responder conflicto",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              }
+                    },
+    "pinData":  {
+
+                },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "active":  false
+}

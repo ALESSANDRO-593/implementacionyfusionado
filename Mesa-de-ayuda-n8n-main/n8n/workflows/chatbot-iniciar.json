@@ -1,0 +1,359 @@
+{
+    "name":  "Chatbot - Iniciar (OTP)",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "chatbot/iniciar",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+                                                         "allowedOrigins":  "*"
+                                                     }
+                                     },
+                      "id":  "n_webhook",
+                      "name":  "Webhook Iniciar",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       0,
+                                       300
+                                   ],
+                      "webhookId":  "yb-chatbot-iniciar"
+                  },
+                  {
+                      "parameters":  {
+                                         "method":  "POST",
+                                         "url":  "https://www.google.com/recaptcha/api/siteverify",
+                                         "sendBody":  true,
+                                         "contentType":  "form-urlencoded",
+                                         "bodyParameters":  {
+                                                                "parameters":  [
+                                                                                   {
+                                                                                       "name":  "secret",
+                                                                                       "value":  "={{ $env.RECAPTCHA_SECRET_KEY }}"
+                                                                                   },
+                                                                                   {
+                                                                                       "name":  "response",
+                                                                                       "value":  "={{ $(\u0027Webhook Iniciar\u0027).first().json.body.captchaToken }}"
+                                                                                   }
+                                                                               ]
+                                                            },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_captcha",
+                      "name":  "Verificar CAPTCHA",
+                      "type":  "n8n-nodes-base.httpRequest",
+                      "typeVersion":  4.2,
+                      "position":  [
+                                       220,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "strict",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "captcha-ok",
+                                                                                   "leftValue":  "={{ $json.success }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_if_captcha",
+                      "name":  "IF CAPTCHA válido",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       440,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { \"ok\": false, \"error\": { \"code\": \"CAPTCHA_INVALIDO\", \"message\": \"Completa nuevamente la verificación reCAPTCHA.\" } } }}",
+                                         "options":  {
+                                                         "responseCode":  403
+                                                     }
+                                     },
+                      "id":  "n_resp_captcha",
+                      "name":  "Responder CAPTCHA inválido",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       660,
+                                       460
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "WITH persona AS (\n  SELECT e.id AS persona_id, e.cedula, \u0027ESTUDIANTE\u0027::text AS tipo_usuario,\n         e.nombres, e.correo, e.estado_matricula,\n         e.nivel::text AS nivel, e.paralelo::text AS paralelo,\n         c.nombre::text AS carrera,\n         (SELECT nombre FROM periodos_academicos WHERE vigente = true ORDER BY id DESC LIMIT 1)::text AS periodo_actual\n  FROM estudiantes e\n  LEFT JOIN carreras c ON c.id = e.carrera_id\n  WHERE e.cedula = $1\n\n  UNION ALL\n\n  SELECT d.id AS persona_id, d.cedula, \u0027DOCENTE\u0027::text AS tipo_usuario,\n         d.nombre_docente AS nombres, d.correo,\n         NULL::text AS estado_matricula, NULL::text AS nivel,\n         NULL::text AS paralelo, NULL::text AS carrera,\n         NULL::text AS periodo_actual\n  FROM docentes d\n  WHERE d.cedula = $1\n    AND NOT EXISTS (SELECT 1 FROM estudiantes e WHERE e.cedula = $1)\n)\nSELECT * FROM persona LIMIT 1",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$(\u0027Webhook Iniciar\u0027).first().json.body.cedula] }}"
+                                                     }
+                                     },
+                      "id":  "n_buscar",
+                      "name":  "Buscar Usuario",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       660,
+                                       220
+                                   ],
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const crypto = require(\u0027crypto\u0027);\nconst rows = $input.all().map(i =\u003e i.json).filter(r =\u003e r \u0026\u0026 r.persona_id);\nconst cedula = String($(\u0027Webhook Iniciar\u0027).first().json.body.cedula || \u0027\u0027).trim();\nif (!/^\\d{10}$/.test(cedula)) {\n  return [{ json: { acceso:false, mensaje:\u0027La cédula debe tener 10 dígitos.\u0027, cedula } }];\n}\nif (rows.length === 0) {\n  return [{ json: { acceso:false, mensaje:\u0027No encontramos un usuario con esa cédula.\u0027, cedula } }];\n}\nconst usuario = rows[0];\nif (usuario.tipo_usuario === \u0027ESTUDIANTE\u0027 \u0026\u0026 String(usuario.estado_matricula).toUpperCase() !== \u0027MATRICULADO\u0027) {\n  return [{ json: { acceso:false, mensaje:\u0027Estudiante no matriculado. No es posible acceder al sistema.\u0027, cedula } }];\n}\nconst otp = String(Math.floor(10000 + Math.random() * 90000));\nconst otp_hash = crypto.createHash(\u0027sha256\u0027).update(otp).digest(\u0027hex\u0027);\nconst expira_en = new Date(Date.now() + 5 * 60 * 1000).toISOString();\nreturn [{ json: {\n  acceso:true, cedula, tipoUsuario:usuario.tipo_usuario,\n  persona_id:usuario.persona_id, correo:usuario.correo,\n  nombres:usuario.nombres, otp, otp_hash, expira_en\n} }];"
+                                     },
+                      "id":  "n_decidir",
+                      "name":  "Decidir",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       880,
+                                       220
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "cond1",
+                                                                                   "leftValue":  "={{ $json.acceso }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_if",
+                      "name":  "IF Acceso",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       660,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "INSERT INTO otp_codigos (cedula, correo, codigo_hash, canal, expira_en) VALUES ($1,$2,$3,\u0027chatbot\u0027,$4)",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.cedula, $json.correo, $json.otp_hash, $json.expira_en] }}"
+                                                     }
+                                     },
+                      "id":  "n_guardar",
+                      "name":  "Guardar OTP",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       880,
+                                       200
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const nodemailer = require(\u0027nodemailer\u0027);\nconst _rawtx = nodemailer.createTransport({ host: $env.SMTP_HOST, port: Number($env.SMTP_PORT||465), secure: String($env.SMTP_SECURE||\u0027true\u0027)!==\u0027false\u0027, auth: $env.SMTP_USER ? { user: $env.SMTP_USER, pass: $env.SMTP_PASS } : undefined, tls: { rejectUnauthorized: false } }); const tx = { sendMail: async (m) =\u003e { try { return await _rawtx.sendMail(m); } catch(e) { console.log(\u0027YaviBot: correo no enviado -\u0027, e.message); } } };\nconst d = $(\u0027Decidir\u0027).first().json;\nawait tx.sendMail({\n  from: ($env.SMTP_FROM || $env.SMTP_USER || \u0027no-reply@yavibot.local\u0027),\n  to: d.correo,\n  subject: \u0027Tu código de verificación YaviBot\u0027,\n  text: `Hola ${d.nombres},\\n\\nTu código de verificación es: ${d.otp}\\n\\nEs válido por 5 minutos y de un solo uso.\\n\\nInstituto Superior Tecnológico Yavirac`\n});\nreturn $input.all();"
+                                     },
+                      "id":  "n_email",
+                      "name":  "Enviar OTP",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       1100,
+                                       200
+                                   ],
+                      "webhookId":  "4e6f0d36-a429-450e-8dae-bf16009621d8"
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { \"ok\": true, \"data\": { \"acceso\": true, \"requiere_otp\": true } } }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_resp_ok",
+                      "name":  "Responder OK",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       1320,
+                                       200
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { \"ok\": true, \"data\": { \"acceso\": false, \"mensaje\": $(\u0027Decidir\u0027).item.json.mensaje } } }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_resp_no",
+                      "name":  "Responder Bloqueo",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       880,
+                                       420
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook Iniciar":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Verificar CAPTCHA",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Decidir":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "IF Acceso",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "IF Acceso":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "Guardar OTP",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ],
+                                                       [
+                                                           {
+                                                               "node":  "Responder Bloqueo",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "Guardar OTP":  {
+                                            "main":  [
+                                                         [
+                                                             {
+                                                                 "node":  "Enviar OTP",
+                                                                 "type":  "main",
+                                                                 "index":  0
+                                                             }
+                                                         ]
+                                                     ]
+                                        },
+                        "Enviar OTP":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Responder OK",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Verificar CAPTCHA":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "IF CAPTCHA válido",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "IF CAPTCHA válido":  {
+                                                  "main":  [
+                                                               [
+                                                                   {
+                                                                       "node":  "Buscar Usuario",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ],
+                                                               [
+                                                                   {
+                                                                       "node":  "Responder CAPTCHA inválido",
+                                                                       "type":  "main",
+                                                                       "index":  0
+                                                                   }
+                                                               ]
+                                                           ]
+                                              },
+                        "Buscar Usuario":  {
+                                               "main":  [
+                                                            [
+                                                                {
+                                                                    "node":  "Decidir",
+                                                                    "type":  "main",
+                                                                    "index":  0
+                                                                }
+                                                            ]
+                                                        ]
+                                           }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 }
+}

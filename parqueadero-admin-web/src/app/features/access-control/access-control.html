@@ -1,0 +1,80 @@
+<header class="page-header">
+  <div><span class="eyebrow">Control de ocupación</span><h1>Entradas y salidas</h1><p>Registre el ingreso con el vehículo habitual o con uno temporal.</p></div>
+  <div class="header-actions"><button class="secondary-button" type="button" (click)="open('SALIDA')">Registrar salida</button><button class="primary-button" type="button" [disabled]="summary().available <= 0" (click)="open('ENTRADA')">Registrar entrada</button></div>
+</header>
+
+@if (feedback()) { <div class="feedback">✓ {{ feedback() }}</div> }
+@if (error() && !mode()) { <div class="error">{{ error() }} <button type="button" (click)="load()">Reintentar</button></div> }
+
+<section class="stats">
+  <article><span>Capacidad</span><strong>{{ summary().total }}</strong></article>
+  <article><span>Vehículos dentro</span><strong>{{ summary().occupied }}</strong></article>
+  <article class="available"><span>Espacios disponibles</span><strong>{{ summary().available }}</strong></article>
+</section>
+
+<section class="filter"><input type="search" placeholder="Buscar por ticket, usuario o placa..." (input)="updateSearch($event)" /></section>
+
+<section class="table-card">
+  <div class="table-heading"><strong>Historial de movimientos</strong><span>{{ filtered().length }} registros</span></div>
+  <div class="table-scroll"><table><thead><tr><th>Fecha y hora</th><th>Ticket</th><th>Usuario</th><th>Vehículo</th><th>Movimiento</th><th>Estado</th></tr></thead><tbody>
+    @if (loading()) {
+      <tr><td colspan="6" class="empty">Consultando movimientos...</td></tr>
+    } @else {
+      @for (item of filtered(); track item.id) {
+        @let user = userFor(item.parkingUserId);
+        <tr><td>{{ format(item.occurredAt) }}</td><td class="code">{{ item.ticketCode }}</td><td><strong>{{ user?.fullName }}</strong><small>{{ user?.identification }}</small></td><td><span class="plate">{{ item.plate }}</span><small>{{ item.isTemporary ? 'Temporal' : 'Habitual' }}</small></td><td><span class="movement" [class.exit]="item.movement === 'SALIDA'">{{ item.movement === 'ENTRADA' ? 'Entrada' : 'Salida' }}</span></td><td>{{ item.validationStatus === 'AUTORIZADO' ? 'Autorizado' : 'Rechazado' }}</td></tr>
+      } @empty {
+        <tr><td colspan="6" class="empty">Aún no hay entradas ni salidas registradas.</td></tr>
+      }
+    }
+  </tbody></table></div>
+</section>
+
+@if (mode(); as movement) {
+  <div class="modal-backdrop" (click)="close()"><section class="modal" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+    <button class="close" type="button" aria-label="Cerrar" (click)="close()">×</button>
+    <span class="eyebrow">Control de acceso</span><h2>Registrar {{ movement === 'ENTRADA' ? 'entrada' : 'salida' }}</h2>
+    <p>{{ movement === 'ENTRADA' ? 'Seleccione un ticket vigente. Cada usuario puede ocupar un solo espacio.' : 'Seleccione el vehículo que se encuentra dentro.' }}</p>
+    <form [formGroup]="form" (ngSubmit)="save()">
+      <div class="ticket-picker">
+        <label for="ticket-search"><span>Ticket y usuario</span></label>
+        <div class="ticket-combobox" role="combobox" aria-haspopup="listbox" [attr.aria-expanded]="ticketDropdownOpen()" (focusout)="closeTicketDropdown($event)">
+          <div class="ticket-search-field">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+            <input id="ticket-search" type="text" autocomplete="off" placeholder="Escriba usuario, placa o número de ticket..." [value]="ticketSearch()" (focus)="openTicketDropdown()" (input)="updateTicketSearch($event)" aria-autocomplete="list" aria-controls="ticket-options" />
+            <svg class="ticket-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m7 10 5 5 5-5" /></svg>
+          </div>
+          @if (ticketDropdownOpen()) {
+            <div id="ticket-options" class="ticket-options" role="listbox">
+              @for (ticket of selectableTickets(); track ticket.id) {
+                <button type="button" role="option" [attr.aria-selected]="form.controls.authorizationId.value === ticket.id.toString()" (click)="selectTicket(ticket)">
+                  <strong>{{ ticket.code }} · {{ userFor(ticket.parkingUserId)?.fullName }}</strong>
+                  <span>{{ ticketPlate(ticket) }} · {{ userFor(ticket.parkingUserId)?.identification }}</span>
+                </button>
+              } @empty {
+                <div class="ticket-empty">No se encontraron tickets con ese usuario, placa o número.</div>
+              }
+            </div>
+          }
+        </div>
+        <small class="ticket-count">Escriba para filtrar {{ selectableTickets().length }} ticket(s) disponible(s).</small>
+      </div>
+
+      @if (movement === 'ENTRADA') {
+        @if (selectedTicket(); as ticket) {
+          <div class="habitual-vehicle"><span>Vehículo habitual</span><strong>{{ vehicleFor(ticket.vehicleId)?.plate ?? 'Sin vehículo activo' }}</strong></div>
+        }
+        <label class="temporary-toggle"><input type="checkbox" formControlName="useTemporary" /><span><strong>Ingresará con un vehículo temporal</strong><small>Use esta opción por pico y placa u otro cambio puntual.</small></span></label>
+        @if (form.controls.useTemporary.value) {
+          <div class="temporary-fields">
+            <label><span>Placa temporal *</span><input type="text" maxlength="15" formControlName="temporaryPlate" placeholder="PBA-7745" /></label>
+            <label><span>Tipo de vehículo *</span><select formControlName="temporaryVehicleType"><option value="AUTO">Automóvil</option><option value="MOTO">Motocicleta</option></select></label>
+          </div>
+        }
+      }
+
+      @if (error()) { <div class="form-error">{{ error() }}</div> }
+      <div class="actions"><button class="secondary-button" type="button" (click)="close()">Cancelar</button><button class="primary-button" type="submit" [disabled]="saving()">{{ saving() ? 'Guardando...' : 'Confirmar movimiento' }}</button></div>
+    </form>
+  </section></div>
+}

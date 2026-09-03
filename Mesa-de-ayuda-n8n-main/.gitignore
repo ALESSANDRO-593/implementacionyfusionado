@@ -1,0 +1,30 @@
+# Node / Angular
+node_modules/
+dist/
+.angular/
+*.log
+npm-debug.log*
+
+# Env / secrets
+.env
+*.local
+
+# n8n
+n8n_data/
+.n8n/
+
+# Postgres data
+pgdata/
+
+# Claude local (personal, no compartir)
+.claude/settings.local.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Uploads generados en runtime
+storage/uploads/
+storage/certificados/

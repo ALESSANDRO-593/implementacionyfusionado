@@ -1,0 +1,31 @@
+.verpage {
+  min-height: 100vh; background: var(--panel-bg);
+  display: flex; align-items: center; justify-content: center; padding: 32px;
+}
+.vercard {
+  width: min(440px, 100%); padding: 40px 36px; text-align: center;
+}
+.vercard__brand {
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  color: var(--navy-900); font-size: 20px; letter-spacing: 2px;
+}
+.vercard__cap { font-size: 26px; }
+.vercard__lead { color: var(--text-500); margin-top: 6px; font-size: 14px; }
+
+.badge {
+  width: 76px; height: 76px; border-radius: 50%; margin: 26px auto 8px;
+  display: grid; place-items: center; font-size: 38px; color: #fff;
+}
+.badge--ok { background: var(--success); }
+.badge--err { background: var(--danger); }
+
+.vercard__title { color: var(--navy-800); font-size: 22px; font-weight: 800; margin-top: 8px; }
+.vercard__msg { color: var(--text-500); margin-top: 10px; font-size: 14.5px; }
+
+.vercard__data { margin-top: 22px; text-align: left; display: flex; flex-direction: column; gap: 12px; }
+.vercard__data > div {
+  display: flex; justify-content: space-between; gap: 16px;
+  border-bottom: 1px solid var(--border); padding-bottom: 10px;
+}
+.vercard__data span { color: var(--text-500); font-size: 14px; }
+.vercard__data b { color: var(--text-900); font-size: 14.5px; text-align: right; }

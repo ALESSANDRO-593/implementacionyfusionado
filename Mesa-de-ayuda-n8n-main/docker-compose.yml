@@ -1,0 +1,103 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: yavibot-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: yavibot
+      POSTGRES_USER: yavibot
+      POSTGRES_PASSWORD: yavibot_dev_2026
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Los scripts en /docker-entrypoint-initdb.d se ejecutan en orden alfabético
+      # SOLO la primera vez (cuando el volumen está vacío).
+      - ./database:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yavibot -d yavibot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: yavibot-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      # n8n usa SQLite para su propio almacenamiento (suficiente en local).
+      # La base de datos de la APLICACIÓN (yavibot) se consulta vía una
+      # credencial Postgres configurada dentro de n8n apuntando a host "postgres".
+      N8N_SECURE_COOKIE: "false"
+      N8N_HOST: "localhost"
+      N8N_PORT: "5678"
+      N8N_PROTOCOL: "http"
+      WEBHOOK_URL: "http://localhost:5678/"
+      GENERIC_TIMEZONE: "America/Guayaquil"
+      TZ: "America/Guayaquil"
+      N8N_DIAGNOSTICS_ENABLED: "false"
+      N8N_RUNNERS_ENABLED: "true"
+      # Permite estos módulos internos en Code nodes (OTP/JWT + escritura de PDF).
+      NODE_FUNCTION_ALLOW_BUILTIN: "crypto,fs"
+      # Permite estos módulos externos en Code nodes (login, RBAC, correos, QR y PDF).
+      NODE_FUNCTION_ALLOW_EXTERNAL: "bcryptjs,pg,nodemailer,qrcode,pdfkit"
+      # Ruta extra para resolver qrcode/pdfkit montados en ./n8n/libs.
+      NODE_PATH: "/opt/node_libs/node_modules"
+      # Permite leer process.env dentro de los Code nodes (config SMTP de Gmail).
+      N8N_BLOCK_ENV_ACCESS_IN_NODE: "false"
+      # Configuración SMTP real (Gmail) — se toma del archivo .env (NO se sube a Git).
+      SMTP_HOST: "${SMTP_HOST:-smtp.gmail.com}"
+      SMTP_PORT: "${SMTP_PORT:-465}"
+      SMTP_SECURE: "${SMTP_SECURE:-true}"
+      SMTP_USER: "${SMTP_USER:-}"
+      SMTP_PASS: "${SMTP_PASS:-}"
+      SMTP_FROM: "${SMTP_FROM:-}"
+      # Sesión del chatbot y conexión usada por Code nodes (sin secretos en workflows).
+      CHAT_JWT_SECRET: "${CHAT_JWT_SECRET:-}"
+      # Clave privada de reCAPTCHA v2; el navegador solo conoce la Site Key.
+      RECAPTCHA_SECRET_KEY: "${RECAPTCHA_SECRET_KEY:-}"
+      JWT_SECRET: "${JWT_SECRET:-}"
+      YAVIBOT_DB_HOST: "${YAVIBOT_DB_HOST:-postgres}"
+      YAVIBOT_DB_PORT: "${YAVIBOT_DB_PORT:-5432}"
+      YAVIBOT_DB_NAME: "${YAVIBOT_DB_NAME:-yavibot}"
+      YAVIBOT_DB_USER: "${YAVIBOT_DB_USER:-yavibot}"
+      YAVIBOT_DB_PASSWORD: "${YAVIBOT_DB_PASSWORD:-}"
+      # Bloquea telemetría/actualizaciones para entorno local.
+      N8N_VERSION_NOTIFICATIONS_ENABLED: "false"
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./n8n/libs:/opt/node_libs:ro          # qrcode + pdfkit (npm install en ./n8n/libs)
+      - ./n8n/plantillas:/data/plantillas:ro  # membrete oficial para el certificado
+      - ./storage:/data/storage               # PDFs de certificados generados
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  # (Mailpit retirado — el sistema envía correos reales por SMTP de Gmail, ver .env)
+
+  # pgAdmin: interfaz oficial de PostgreSQL (web). Se abre en http://localhost:5050
+  # Viene con la conexión "YaviBot" ya preconfigurada (solo pide la contraseña una vez).
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: yavibot-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@yavibot.com
+      PGADMIN_DEFAULT_PASSWORD: YaviBot2026
+      PGADMIN_CONFIG_SERVER_MODE: "False"
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: "False"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+      - ./pgadmin/servers.json:/pgadmin4/servers.json:ro
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  n8n_data:
+  pgadmin_data:

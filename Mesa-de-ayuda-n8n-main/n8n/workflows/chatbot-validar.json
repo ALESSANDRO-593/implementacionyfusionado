@@ -1,0 +1,222 @@
+{
+    "name":  "Chatbot - Validar OTP",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "chatbot/otp/validar",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+                                                         "allowedOrigins":  "*"
+                                                     }
+                                     },
+                      "id":  "n_wh",
+                      "name":  "Webhook Validar",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       0,
+                                       300
+                                   ],
+                      "webhookId":  "yb-chatbot-otp-validar"
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "WITH persona AS (\n  SELECT e.cedula, \u0027ESTUDIANTE\u0027::text AS tipo_usuario,\n         e.nombres, e.correo, e.estado_matricula,\n         e.nivel::text AS nivel, e.paralelo::text AS paralelo,\n         c.nombre::text AS carrera,\n         (SELECT nombre FROM periodos_academicos WHERE vigente = true ORDER BY id DESC LIMIT 1)::text AS periodo_actual\n  FROM estudiantes e\n  LEFT JOIN carreras c ON c.id = e.carrera_id\n  WHERE e.cedula = $1\n\n  UNION ALL\n\n  SELECT d.cedula, \u0027DOCENTE\u0027::text AS tipo_usuario,\n         d.nombre_docente AS nombres, d.correo,\n         NULL::text AS estado_matricula, NULL::text AS nivel,\n         NULL::text AS paralelo, NULL::text AS carrera,\n         NULL::text AS periodo_actual\n  FROM docentes d\n  WHERE d.cedula = $1\n    AND NOT EXISTS (SELECT 1 FROM estudiantes e WHERE e.cedula = $1)\n)\nSELECT o.id AS otp_id, o.codigo_hash, o.expira_en, o.usado,\n       p.tipo_usuario, p.nombres, p.correo, p.estado_matricula,\n       p.nivel, p.paralelo, p.carrera, p.periodo_actual\nFROM otp_codigos o\nJOIN persona p ON p.cedula = o.cedula\nWHERE o.cedula = $1 AND o.canal = \u0027chatbot\u0027\nORDER BY o.id DESC\nLIMIT 1",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.body.cedula] }}"
+                                                     }
+                                     },
+                      "id":  "n_buscar",
+                      "name":  "Buscar OTP",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       220,
+                                       300
+                                   ],
+                      "alwaysOutputData":  true,
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "const crypto = require(\u0027crypto\u0027);\nconst SECRET = String($env.CHAT_JWT_SECRET || \u0027\u0027);\nconst codigo = String($(\u0027Webhook Validar\u0027).first().json.body.codigo || \u0027\u0027);\nconst cedula = String($(\u0027Webhook Validar\u0027).first().json.body.cedula || \u0027\u0027);\nconst rows = $input.all().map(i =\u003e i.json).filter(r =\u003e r \u0026\u0026 r.otp_id);\nif (!SECRET) return [{ json: { valido:false, mensaje:\u0027La sesión del chatbot no está configurada.\u0027 } }];\nif (rows.length === 0) return [{ json: { valido:false, mensaje:\u0027No hay un código pendiente. Solicita uno nuevo.\u0027 } }];\nconst r = rows[0];\nconst hash = crypto.createHash(\u0027sha256\u0027).update(codigo).digest(\u0027hex\u0027);\nconst expirado = new Date(r.expira_en) \u003c new Date();\nif (r.usado) return [{ json: { valido:false, mensaje:\u0027Este código ya fue utilizado.\u0027 } }];\nif (expirado) return [{ json: { valido:false, mensaje:\u0027El código expiró. Solicita uno nuevo.\u0027 } }];\nif (hash !== r.codigo_hash) return [{ json: { valido:false, mensaje:\u0027Código incorrecto. Intenta nuevamente.\u0027 } }];\n\nconst b64 = b =\u003e Buffer.from(b).toString(\u0027base64\u0027).replace(/=/g,\u0027\u0027).replace(/\\+/g,\u0027-\u0027).replace(/\\//g,\u0027_\u0027);\nconst header = b64(JSON.stringify({ alg:\u0027HS256\u0027, typ:\u0027JWT\u0027 }));\nconst payload = b64(JSON.stringify({ sub:cedula, typ:\u0027chat\u0027, tipoUsuario:r.tipo_usuario, exp:Math.floor(Date.now()/1000) + 3600 }));\nconst sig = b64(crypto.createHmac(\u0027sha256\u0027, SECRET).update(header + \u0027.\u0027 + payload).digest());\nconst sesion = header + \u0027.\u0027 + payload + \u0027.\u0027 + sig;\nconst usuario = {\n  tipoUsuario:r.tipo_usuario,\n  nombres:r.nombres,\n  correoInstitucional:r.correo,\n  carrera:r.carrera,\n  nivel:r.nivel,\n  paralelo:r.paralelo,\n  periodoActual:r.periodo_actual,\n  estadoMatricula:r.estado_matricula\n};\nreturn [{ json: { valido:true, otp_id:r.otp_id, sesion, tipoUsuario:r.tipo_usuario, usuario } }];"
+                                     },
+                      "id":  "n_verif",
+                      "name":  "Verificar",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       440,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "conditions":  {
+                                                            "options":  {
+                                                                            "caseSensitive":  true,
+                                                                            "leftValue":  "",
+                                                                            "typeValidation":  "loose",
+                                                                            "version":  2
+                                                                        },
+                                                            "conditions":  [
+                                                                               {
+                                                                                   "id":  "c1",
+                                                                                   "leftValue":  "={{ $json.valido }}",
+                                                                                   "rightValue":  "",
+                                                                                   "operator":  {
+                                                                                                    "type":  "boolean",
+                                                                                                    "operation":  "true",
+                                                                                                    "singleValue":  true
+                                                                                                }
+                                                                               }
+                                                                           ],
+                                                            "combinator":  "and"
+                                                        },
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_if",
+                      "name":  "IF Valido",
+                      "type":  "n8n-nodes-base.if",
+                      "typeVersion":  2.3,
+                      "position":  [
+                                       660,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "operation":  "executeQuery",
+                                         "query":  "UPDATE otp_codigos SET usado = true WHERE id = $1",
+                                         "options":  {
+                                                         "queryReplacement":  "={{ [$json.otp_id] }}"
+                                                     }
+                                     },
+                      "id":  "n_marcar",
+                      "name":  "Marcar Usado",
+                      "type":  "n8n-nodes-base.postgres",
+                      "typeVersion":  2.6,
+                      "position":  [
+                                       880,
+                                       200
+                                   ],
+                      "credentials":  {
+                                          "postgres":  {
+                                                           "id":  "s0Gn0DbaHQtIzuTr",
+                                                           "name":  "YaviBot Postgres"
+                                                       }
+                                      }
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { \"ok\": true, \"data\": { \"sesion\": $(\"Verificar\").item.json.sesion, \"tipoUsuario\": $(\"Verificar\").item.json.tipoUsuario, \"usuario\": $(\"Verificar\").item.json.usuario, \"estudiante\": $(\"Verificar\").item.json.usuario } } }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_ok",
+                      "name":  "Responder OK",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       1100,
+                                       200
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ { \"ok\": false, \"error\": { \"code\": \"OTP_INVALIDO\", \"message\": $(\u0027Verificar\u0027).item.json.mensaje } } }}",
+                                         "options":  {
+
+                                                     }
+                                     },
+                      "id":  "n_no",
+                      "name":  "Responder Invalido",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       880,
+                                       420
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook Validar":  {
+                                                "main":  [
+                                                             [
+                                                                 {
+                                                                     "node":  "Buscar OTP",
+                                                                     "type":  "main",
+                                                                     "index":  0
+                                                                 }
+                                                             ]
+                                                         ]
+                                            },
+                        "Buscar OTP":  {
+                                           "main":  [
+                                                        [
+                                                            {
+                                                                "node":  "Verificar",
+                                                                "type":  "main",
+                                                                "index":  0
+                                                            }
+                                                        ]
+                                                    ]
+                                       },
+                        "Verificar":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "IF Valido",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "IF Valido":  {
+                                          "main":  [
+                                                       [
+                                                           {
+                                                               "node":  "Marcar Usado",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ],
+                                                       [
+                                                           {
+                                                               "node":  "Responder Invalido",
+                                                               "type":  "main",
+                                                               "index":  0
+                                                           }
+                                                       ]
+                                                   ]
+                                      },
+                        "Marcar Usado":  {
+                                             "main":  [
+                                                          [
+                                                              {
+                                                                  "node":  "Responder OK",
+                                                                  "type":  "main",
+                                                                  "index":  0
+                                                              }
+                                                          ]
+                                                      ]
+                                         }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 },
+    "id":  "U7gnuYaHG2fzBeyy"
+}

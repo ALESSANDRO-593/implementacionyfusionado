@@ -1,0 +1,52 @@
+@use '../authorizations/authorizations.scss';
+
+.filter-card { grid-template-columns: minmax(280px, 1fr); }
+table { min-width: 920px; }
+.plate--temporary { color: var(--orange-700); }
+.reason, .registered-date { color: var(--navy-800); font-size: 11px; }
+.issue-modal { max-width: 730px; }
+.full-field { grid-column: 1 / -1; }
+.form-grid input {
+  background: #fff;
+  border: 1px solid var(--slate-300);
+  color: var(--navy-900);
+  height: 45px;
+  outline: none;
+  padding: 0 12px;
+  width: 100%;
+}
+.form-grid input:focus {
+  border-color: var(--orange-500);
+  box-shadow: 0 0 0 3px rgb(249 115 22 / 12%);
+}
+.authorization-summary {
+  background: #f3f6f8;
+  border-radius: 10px;
+  display: grid;
+  gap: 15px;
+  grid-template-columns: .7fr 1.4fr 1fr;
+  margin-top: 18px;
+  padding: 14px;
+}
+.authorization-summary span, .authorization-summary strong { display: block; }
+.authorization-summary span {
+  color: var(--slate-500);
+  font-size: 9px;
+  margin-bottom: 4px;
+  text-transform: uppercase;
+}
+.authorization-summary strong { color: var(--navy-900); font-size: 11px; }
+.form-message--warning { background: #fff7e8; color: #8a5800; }
+.trace-note {
+  background: #edf4f8;
+  border-left: 3px solid var(--navy-600);
+  color: var(--navy-700);
+  font-size: 11px;
+  line-height: 1.5;
+  margin-top: 18px;
+  padding: 9px 11px;
+}
+
+@media (max-width: 560px) {
+  .authorization-summary { grid-template-columns: 1fr; }
+}

@@ -1,0 +1,551 @@
+{
+  "name": "App Matrícula - Enviar Ticket de Verificación",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## Enviar ticket de verificación (esquema REAL)\n- Primero busca en `estudiantes`; si no hay match, busca en `docentes` (misma cédula, segunda identidad). \"Generar Ticket\" es genérico (usa spread de $json), por eso sirve para ambos sin cambios.\n- estudiantes.correo / docentes.correo (no correo_institucional), sin columna apellidos.\n- El ticket se GUARDA HASHEADO con pgcrypto: encode(digest(ticket, 'sha256'), 'hex') en otp_codigos.codigo_hash. Nunca se guarda en texto plano.\n- canal = 'chatbot' (valor válido del CHECK de otp_codigos).\n- Expira en 10 minutos (elegido para esta instancia independiente; el otp.expiracion_min=5 del dump pertenece al otro sistema/panel).\n- Configura credenciales SMTP reales (o Mailtrap para pruebas) en el nodo de correo.\n- Incluye manejo de preflight CORS (OPTIONS).",
+        "height": 300,
+        "width": 380
+      },
+      "id": "c1111111-1111-4111-8111-111111111111",
+      "name": "Nota",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        -160
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "enviar-ticket-verificacion",
+        "responseMode": "responseNode",
+        "options": {},
+        "authentication": "headerAuth"
+      },
+      "id": "c2222222-2222-4222-8222-222222222222",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        0
+      ],
+      "webhookId": "enviar-ticket-verificacion",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credencial Header Auth (X-Api-Key)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "OPTIONS",
+        "path": "enviar-ticket-verificacion",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "caaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "name": "Webhook (OPTIONS)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        200,
+        320
+      ],
+      "webhookId": "enviar-ticket-verificacion-options"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "",
+        "options": {
+          "responseCode": 204,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              },
+              {
+                "name": "Access-Control-Allow-Methods",
+                "value": "POST, OPTIONS"
+              },
+              {
+                "name": "Access-Control-Allow-Headers",
+                "value": "Content-Type, X-Api-Key"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "name": "Responder: CORS preflight",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        460,
+        320
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT 1 AS ok FROM otp_codigos WHERE cedula = $1 AND creado_en > NOW() - INTERVAL '60 seconds' ORDER BY creado_en DESC LIMIT 1",
+        "options": {
+          "queryReplacement": "={{ [ $json.body.cedula ] }}"
+        }
+      },
+      "id": "cool0001-cool-4ool-8ool-cool00000001",
+      "name": "Verificar Cooldown OTP (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        -300
+      ],
+      "alwaysOutputData": true,
+      "notes": "Sin esto, este endpoint no tenía CAPTCHA ni límite de frecuencia propio: cualquiera con la X-Api-Key podía hacer que el sistema mandara el código OTP repetidamente al correo institucional de cualquier cédula conocida (spam). Cooldown de 60s entre envíos por cédula.",
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.ok }}",
+              "rightValue": "",
+              "operator": {
+                "type": "number",
+                "operation": "empty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cool0002-cool-4ool-8ool-cool00000002",
+      "name": "¿Puede enviar OTP ahora?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        -300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Ya enviamos un código hace unos segundos. Espera un momento antes de solicitar uno nuevo.\" } }}",
+        "options": {
+          "responseCode": 429,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "cool0003-cool-4ool-8ool-cool00000003",
+      "name": "Responder: Cooldown activo",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        980,
+        -460
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT cedula, nombres, correo AS \"correoInstitucional\" FROM estudiantes WHERE cedula = $1",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.cedula ] }}"
+        }
+      },
+      "id": "c3333333-3333-4333-8333-333333333333",
+      "name": "Buscar Estudiante (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        460,
+        0
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.correoInstitucional }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "c4444444-4444-4444-8444-444444444444",
+      "name": "¿Existe el estudiante?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        720,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const ticket = Math.floor(100000 + Math.random() * 900000).toString();\n\nconst usuario = $json.correoInstitucional.split('@')[0];\nconst dominio = $json.correoInstitucional.split('@')[1];\nconst visible = usuario.slice(0, 2);\nconst correoEnmascarado = `${visible}${'*'.repeat(Math.max(usuario.length - 2, 3))}@${dominio}`;\n\nreturn [{\n  json: {\n    ...$json,\n    ticket,\n    correoEnmascarado\n  }\n}];"
+      },
+      "id": "c5555555-5555-4555-8555-555555555555",
+      "name": "Generar Ticket",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        980,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "INSERT INTO otp_codigos (cedula, correo, codigo_hash, canal, expira_en) VALUES ($1, $2, encode(digest($3, 'sha256'), 'hex'), 'chatbot', NOW() + INTERVAL '10 minutes')",
+        "options": {
+          "queryReplacement": "={{ [$json.cedula, $json.correoInstitucional, $json.ticket] }}"
+        }
+      },
+      "id": "c6666666-6666-4666-8666-666666666666",
+      "name": "Guardar Ticket (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        1240,
+        -120
+      ],
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "fromEmail": "mesadeayuda@yavirac.edu.ec",
+        "toEmail": "={{ $('Generar Ticket').item.json.correoInstitucional }}",
+        "subject": "Tu código de verificación - YaviBot",
+        "emailFormat": "text",
+        "text": "=🏫 INSTITUTO SUPERIOR TECNOLÓGICO \"YAVIRAC\"\n\nHola {{ $('Generar Ticket').item.json.nombres }},\n\nEste es tu código de verificación para continuar en YaviBot:\n\n   🔐  {{ $('Generar Ticket').item.json.ticket }}\n\nEste código expira en 10 minutos. Si tú no lo solicitaste, puedes ignorar este correo con confianza.\n\n📱 Enviado desde la app móvil · YaviBot\nInstituto Superior Tecnológico \"YAVIRAC\" · Quito, Ecuador\nwww.yavirac.edu.ec"
+      },
+      "id": "c7777777-7777-4777-8777-777777777777",
+      "name": "Enviar Correo (SMTP)",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2,
+      "position": [
+        1500,
+        -120
+      ],
+      "notes": "Para pruebas: configurar credenciales SMTP de Mailtrap (Settings > Credentials > SMTP, con el host/puerto/usuario/password del sandbox de Mailtrap). Reemplazar id REEMPLAZAR.",
+      "credentials": {
+        "smtp": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales SMTP (Mailtrap en pruebas)"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"correoEnmascarado\": $('Generar Ticket').item.json.correoEnmascarado } }}",
+        "options": {
+          "responseCode": 200,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c8888888-8888-4888-8888-888888888888",
+      "name": "Responder: Ticket enviado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        -120
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "resource": "database",
+        "query": "SELECT cedula, nombre_docente AS nombres, correo AS \"correoInstitucional\" FROM docentes WHERE cedula = $1",
+        "options": {
+          "queryReplacement": "={{ [ $('Webhook').item.json.body.cedula ] }}"
+        }
+      },
+      "id": "cddddddd-dddd-4ddd-8ddd-ddddddddddd1",
+      "name": "Buscar Docente (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [
+        980,
+        60
+      ],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "REEMPLAZAR",
+          "name": "REEMPLAZAR con credenciales reales"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose"
+          },
+          "conditions": [
+            {
+              "id": "cond1",
+              "leftValue": "={{ $json.correoInstitucional }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "cddddddd-dddd-4ddd-8ddd-ddddddddddd2",
+      "name": "¿Existe el docente?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1240,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"error\": \"Estudiante no encontrado.\" } }}",
+        "options": {
+          "responseCode": 404,
+          "responseHeaders": {
+            "entries": [
+              {
+                "name": "Access-Control-Allow-Origin",
+                "value": "*"
+              }
+            ]
+          }
+        }
+      },
+      "id": "c9999999-9999-4999-8999-999999999999",
+      "name": "Responder: No encontrado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        1500,
+        160
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Verificar Cooldown OTP (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Verificar Cooldown OTP (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Puede enviar OTP ahora?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Puede enviar OTP ahora?": {
+      "main": [
+        [
+          {
+            "node": "Buscar Estudiante (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: Cooldown activo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook (OPTIONS)": {
+      "main": [
+        [
+          {
+            "node": "Responder: CORS preflight",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Estudiante (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Existe el estudiante?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Existe el estudiante?": {
+      "main": [
+        [
+          {
+            "node": "Generar Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Buscar Docente (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Buscar Docente (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "¿Existe el docente?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "¿Existe el docente?": {
+      "main": [
+        [
+          {
+            "node": "Generar Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Responder: No encontrado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Generar Ticket": {
+      "main": [
+        [
+          {
+            "node": "Guardar Ticket (Postgres)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Guardar Ticket (Postgres)": {
+      "main": [
+        [
+          {
+            "node": "Enviar Correo (SMTP)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Enviar Correo (SMTP)": {
+      "main": [
+        [
+          {
+            "node": "Responder: Ticket enviado",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": true
+}

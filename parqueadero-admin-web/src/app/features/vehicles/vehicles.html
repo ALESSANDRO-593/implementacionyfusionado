@@ -1,0 +1,168 @@
+<header class="page-header">
+  <div>
+    <span class="eyebrow">Gestión de vehículos</span>
+    <h1>Vehículos registrados</h1>
+    <p>Consulte todos los vehículos y registre nuevos únicamente para usuarios invitados.</p>
+  </div>
+  <button class="primary-button" type="button" (click)="openRegistration()">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14m-7-7h14" /></svg>
+    Registrar vehículo
+  </button>
+</header>
+
+@if (feedback()) {
+  <div class="feedback" role="status"><span>✓</span>{{ feedback() }}</div>
+}
+
+@if (loadError()) {
+  <div class="api-message api-message--error" role="alert">
+    <span>{{ loadError() }}</span>
+    <button type="button" (click)="loadData()">Reintentar</button>
+  </div>
+}
+
+<section class="filter-card" aria-label="Filtros de vehículos">
+  <label class="search-field">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-4-4" /></svg>
+    <span class="sr-only">Buscar vehículos</span>
+    <input type="search" placeholder="Buscar por placa, cédula, usuario o detalle..." (input)="updateSearch($event)" />
+  </label>
+  <label>
+    <span class="sr-only">Filtrar por tipo</span>
+    <select (change)="updateTypeFilter($event)">
+      <option value="TODOS">Todos los vehículos</option>
+      <option value="AUTO">Automóviles</option>
+      <option value="MOTO">Motocicletas</option>
+    </select>
+  </label>
+</section>
+
+<section class="table-card">
+  <div class="table-summary">
+    <div><strong>{{ filteredVehicles().length }}</strong> vehículos activos</div>
+  </div>
+
+  <div class="table-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Placa</th>
+          <th>Tipo</th>
+          <th>Detalle</th>
+          <th>Usuario asociado</th>
+          <th>Uso</th>
+          <th class="align-right">Acción</th>
+        </tr>
+      </thead>
+      <tbody>
+        @if (isLoading()) {
+          <tr><td class="empty-state" colspan="6"><strong>Consultando vehículos...</strong><span>Espere un momento.</span></td></tr>
+        } @else {
+        @for (vehicle of filteredVehicles(); track vehicle.id) {
+          @let user = userFor(vehicle.parkingUserId);
+          <tr>
+            <td><strong class="plate">{{ vehicle.plate }}</strong></td>
+            <td>
+              <span class="type-badge" [class.type-badge--motorcycle]="vehicle.type === 'MOTO'">
+                @if (vehicle.type === 'AUTO') {
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 16 1.5-6h11l2 6M3 16h18v3H3z" /><circle cx="8" cy="16" r="1" /><circle cx="17" cy="16" r="1" /></svg>
+                } @else {
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="17" r="3" /><circle cx="18" cy="17" r="3" /><path d="m9 17 3-6 3 6m-5-3H7l-2-4h3m4 1h4l2 3" /></svg>
+                }
+                {{ vehicle.type === 'AUTO' ? 'Automóvil' : 'Motocicleta' }}
+              </span>
+            </td>
+            <td>
+              <strong class="detail">{{ vehicle.brand }} {{ vehicle.model }}</strong>
+              <span class="secondary">{{ vehicle.color }}</span>
+            </td>
+            <td>
+              <strong class="user-name">{{ user?.fullName ?? 'Usuario no disponible' }}</strong>
+              <span class="secondary">{{ user?.type === 'ESTUDIANTE' ? 'Estudiante' : user?.type === 'DOCENTE' ? 'Docente' : user?.type === 'INVITADO' ? 'Invitado' : 'Tipo no disponible' }} · {{ user?.identification }}</span>
+            </td>
+            <td>
+              <span class="usage-badge" [class.usage-badge--secondary]="!vehicle.isPrimary">
+                {{ vehicle.isPrimary ? 'Habitual' : 'Secundario' }}
+              </span>
+            </td>
+            <td class="align-right">
+              <button class="retire-button" type="button" [disabled]="retiringVehicleId() === vehicle.id" [attr.aria-label]="'Retirar vehículo ' + vehicle.plate" title="Retirar vehículo" (click)="retireVehicle(vehicle)">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16m-10 4v6m4-6v6M9 7l1-3h4l1 3m-9 0 1 14h10l1-14" /></svg>
+              </button>
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td class="empty-state" colspan="6">
+              @if (hasActiveFilters()) {
+                <strong>No encontramos vehículos</strong><span>Prueba con otros términos o filtros.</span>
+              } @else {
+                <strong>Aún no hay vehículos registrados</strong><span>Utilice “Registrar vehículo” para agregar el primero.</span>
+              }
+            </td>
+          </tr>
+        }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>
+
+@if (isModalOpen()) {
+  <div class="modal-backdrop" role="presentation" (click)="closeRegistration()">
+    <section class="modal" role="dialog" aria-modal="true" aria-labelledby="vehicle-registration-title" (click)="$event.stopPropagation()">
+      <button class="close-button" type="button" aria-label="Cerrar" (click)="closeRegistration()">×</button>
+      <span class="eyebrow">Nuevo registro</span>
+      <h2 id="vehicle-registration-title">Registrar vehículo</h2>
+      <p class="modal-description">El vehículo quedará asociado a un usuario invitado.</p>
+
+      <form [formGroup]="vehicleForm" (ngSubmit)="registerVehicle()">
+        <div class="form-grid">
+          <label class="full-width">
+            <span>Usuario</span>
+            <select formControlName="parkingUserId">
+              <option value="">Seleccione un invitado</option>
+              @for (user of availableParkingUsers(); track user.id) {
+                <option [value]="user.id">{{ user.fullName }} · {{ user.identification }}</option>
+              }
+            </select>
+          </label>
+
+          <label>
+            <span>Placa</span>
+            <input type="text" maxlength="15" placeholder="PCS-4821" formControlName="plate" (input)="normalizePlate()" />
+          </label>
+
+          <label>
+            <span>Tipo de vehículo</span>
+            <select formControlName="type">
+              <option value="AUTO">Automóvil</option>
+              <option value="MOTO">Motocicleta</option>
+            </select>
+          </label>
+        </div>
+
+        @if (plateAlreadyExists()) {
+          <div class="form-message form-message--error">La placa ingresada ya está registrada.</div>
+        } @else if (vehicleForm.touched && vehicleForm.invalid) {
+          <div class="form-message form-message--error">Complete correctamente todos los campos obligatorios.</div>
+        }
+
+        @if (mutationError() && !plateAlreadyExists()) {
+          <div class="form-message form-message--error">{{ mutationError() }}</div>
+        }
+
+        @if (!availableParkingUsers().length) {
+          <div class="form-message form-message--error">Primero debe registrar y habilitar un usuario invitado.</div>
+        }
+
+        <div class="modal-actions">
+          <button class="cancel-button" type="button" (click)="closeRegistration()">Cancelar</button>
+          <button class="primary-button" type="submit" [disabled]="isSaving() || !availableParkingUsers().length">
+            {{ isSaving() ? 'Guardando...' : 'Guardar vehículo' }}
+          </button>
+        </div>
+      </form>
+    </section>
+  </div>
+}

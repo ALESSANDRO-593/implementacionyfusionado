@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- El VPS institucional solo tiene IP, sin dominio ni certificado TLS
+         todavía, así que se permite tráfico HTTP explícitamente en toda la
+         app (Android bloquea cleartext por defecto desde API 28). Se usa
+         base-config en vez de restringir por dominio porque algunas
+         versiones de Android no matchean bien una IP cruda en <domain>. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

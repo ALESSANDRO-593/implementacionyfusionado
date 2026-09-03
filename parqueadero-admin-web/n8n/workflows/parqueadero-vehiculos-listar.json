@@ -1,0 +1,84 @@
+{
+  "id": "parkVehiclesListV1",
+  "name": "Parqueadero - Listar vehículos",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "GET", "path": "panel/parqueadero/vehiculos", "responseMode": "responseNode", "options": {} },
+      "id": "b1000001-0001-4001-8001-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-520, 0],
+      "webhookId": "panel-parqueadero-vehiculos-listar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst fail = (statusCode, error) => [{ json: { authorized: false, statusCode, error } }];\nconst authorization = $json.headers?.authorization ?? '';\nif (!authorization.startsWith('Bearer ')) return fail(401, 'Sesión requerida.');\nconst secret = $env.JWT_SECRET;\nif (!secret) return fail(500, 'JWT_SECRET no está configurado.');\ntry {\n  const token = authorization.slice(7).trim();\n  const [header, payloadPart, signature, extra] = token.split('.');\n  if (!header || !payloadPart || !signature || extra) throw new Error();\n  const expected = crypto.createHmac('sha256', secret).update(`${header}.${payloadPart}`).digest('base64url');\n  const left = Buffer.from(signature);\n  const right = Buffer.from(expected);\n  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) throw new Error();\n  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));\n  if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) throw new Error();\n  const role = String(payload.rol ?? payload.role ?? '').toUpperCase();\n  const permissions = (Array.isArray(payload.permisos) ? payload.permisos : []).map(value => String(value).toLowerCase());\n  const allowed = role === 'ADMINISTRADOR_PARKING' || permissions.includes('parqueadero.ver') || permissions.includes('parqueadero.gestionar');\n  if (!allowed) return fail(403, 'No tiene permisos para consultar parqueadero.');\n  return [{ json: { authorized: true } }];\n} catch {\n  return fail(401, 'La sesión es inválida o ha vencido.');\n}"
+      },
+      "id": "b1000001-0001-4001-8001-000000000002",
+      "name": "Validar sesión",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-300, 0]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "authorized", "leftValue": "={{ $json.authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" },
+        "options": {}
+      },
+      "id": "b1000001-0001-4001-8001-000000000003",
+      "name": "¿Sesión autorizada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-80, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  pv.id::int AS \"id\",\n  pv.parqueadero_usuario_id::int AS \"parkingUserId\",\n  UPPER(pv.placa) AS \"plate\",\n  pv.tipo_vehiculo AS \"type\",\n  COALESCE(pv.marca, '') AS \"brand\",\n  COALESCE(pv.modelo, '') AS \"model\",\n  COALESCE(pv.color, '') AS \"color\",\n  pv.es_principal AS \"isPrimary\",\n  pv.activo AS \"active\"\nFROM public.parqueadero_vehiculos pv\nWHERE pv.activo = TRUE\nORDER BY pv.es_principal DESC, UPPER(pv.placa), pv.id;",
+        "options": {}
+      },
+      "id": "b1000001-0001-4001-8001-000000000004",
+      "name": "Consultar vehículos (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [160, -100],
+      "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": { "jsCode": "const data = $input.all().map(item => item.json).filter(item => item.id != null);\nreturn [{ json: { data } }];" },
+      "id": "b1000001-0001-4001-8001-000000000005",
+      "name": "Formatear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": { "responseCode": 200 } },
+      "id": "b1000001-0001-4001-8001-000000000006",
+      "name": "Responder vehículos",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [640, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "b1000001-0001-4001-8001-000000000007",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [160, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Validar sesión", "type": "main", "index": 0 }]] },
+    "Validar sesión": { "main": [[{ "node": "¿Sesión autorizada?", "type": "main", "index": 0 }]] },
+    "¿Sesión autorizada?": { "main": [[{ "node": "Consultar vehículos (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Consultar vehículos (Postgres)": { "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]] },
+    "Formatear respuesta": { "main": [[{ "node": "Responder vehículos", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

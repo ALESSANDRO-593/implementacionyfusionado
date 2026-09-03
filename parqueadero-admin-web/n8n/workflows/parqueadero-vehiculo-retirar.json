@@ -1,0 +1,94 @@
+{
+  "id": "parkVehicleRetireV1",
+  "name": "Parqueadero - Retirar vehículo",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "PATCH", "path": "panel/parqueadero/vehiculos/retirar", "responseMode": "responseNode", "options": {} },
+      "id": "b3000003-0003-4003-8003-000000000001",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-500, 0],
+      "webhookId": "panel-parqueadero-vehiculo-retirar"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst fail = (statusCode, error) => [{ json: { ok: false, statusCode, error } }];\nconst authorization = $json.headers?.authorization ?? '';\nif (!authorization.startsWith('Bearer ')) return fail(401, 'Sesión requerida.');\nconst secret = $env.JWT_SECRET;\nif (!secret) return fail(500, 'JWT_SECRET no está configurado.');\ntry {\n  const token = authorization.slice(7).trim();\n  const [header, payloadPart, signature, extra] = token.split('.');\n  if (!header || !payloadPart || !signature || extra) throw new Error();\n  const expected = crypto.createHmac('sha256', secret).update(`${header}.${payloadPart}`).digest('base64url');\n  const left = Buffer.from(signature);\n  const right = Buffer.from(expected);\n  if (left.length !== right.length || !crypto.timingSafeEqual(left, right)) throw new Error();\n  const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8'));\n  if (!payload.exp || payload.exp <= Math.floor(Date.now() / 1000)) throw new Error();\n  const role = String(payload.rol ?? payload.role ?? '').toUpperCase();\n  const permissions = (Array.isArray(payload.permisos) ? payload.permisos : []).map(value => String(value).toLowerCase());\n  if (role !== 'ADMINISTRADOR_PARKING' && !permissions.includes('parqueadero.gestionar')) return fail(403, 'No tiene permisos para gestionar parqueadero.');\n  const id = Number($json.body?.id);\n  if (!Number.isInteger(id) || id <= 0) return fail(400, 'El identificador del vehículo no es válido.');\n  return [{ json: { ok: true, id } }];\n} catch {\n  return fail(401, 'La sesión es inválida o ha vencido.');\n}"
+      },
+      "id": "b3000003-0003-4003-8003-000000000002",
+      "name": "Autorizar y validar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" },
+        "options": {}
+      },
+      "id": "b3000003-0003-4003-8003-000000000003",
+      "name": "¿Solicitud autorizada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-60, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "WITH target AS (\n  SELECT id, parqueadero_usuario_id, es_principal\n  FROM public.parqueadero_vehiculos\n  WHERE id = $1::bigint AND activo = TRUE\n), successor AS (\n  SELECT pv.id\n  FROM public.parqueadero_vehiculos pv\n  JOIN target t ON t.parqueadero_usuario_id = pv.parqueadero_usuario_id\n  WHERE pv.activo = TRUE AND pv.id <> t.id\n  ORDER BY pv.es_principal DESC, pv.creado_en, pv.id\n  LIMIT 1\n), retired AS (\n  UPDATE public.parqueadero_vehiculos pv\n  SET activo = FALSE, es_principal = FALSE, actualizado_en = now()\n  FROM target t\n  WHERE pv.id = t.id\n  RETURNING pv.id, t.es_principal\n), promoted AS (\n  UPDATE public.parqueadero_vehiculos pv\n  SET es_principal = TRUE, actualizado_en = now()\n  FROM retired r\n  WHERE r.es_principal = TRUE\n    AND pv.id = (SELECT id FROM successor)\n  RETURNING pv.id\n)\nSELECT\n  COALESCE((SELECT TRUE FROM retired LIMIT 1), FALSE) AS success,\n  (SELECT id::int FROM retired LIMIT 1) AS id,\n  (SELECT id::int FROM promoted LIMIT 1) AS \"promotedVehicleId\",\n  CASE WHEN NOT EXISTS (SELECT 1 FROM retired) THEN 'El vehículo no existe o ya fue retirado.' ELSE NULL END AS error,\n  CASE WHEN NOT EXISTS (SELECT 1 FROM retired) THEN 404 ELSE 200 END AS \"statusCode\";",
+        "options": { "queryReplacement": "={{ [$json.id] }}" }
+      },
+      "id": "b3000003-0003-4003-8003-000000000004",
+      "name": "Retirar vehículo (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [180, -100],
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": {
+        "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "retired", "leftValue": "={{ $json.success }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" },
+        "options": {}
+      },
+      "id": "b3000003-0003-4003-8003-000000000005",
+      "name": "¿Vehículo retirado?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [420, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { success: true, id: $json.id, promotedVehicleId: $json.promotedVehicleId } }}", "options": { "responseCode": 200 } },
+      "id": "b3000003-0003-4003-8003-000000000006",
+      "name": "Responder retiro",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [660, -180]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "b3000003-0003-4003-8003-000000000007",
+      "name": "Responder no encontrado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [660, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "b3000003-0003-4003-8003-000000000008",
+      "name": "Responder error",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [180, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Autorizar y validar", "type": "main", "index": 0 }]] },
+    "Autorizar y validar": { "main": [[{ "node": "¿Solicitud autorizada?", "type": "main", "index": 0 }]] },
+    "¿Solicitud autorizada?": { "main": [[{ "node": "Retirar vehículo (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Retirar vehículo (Postgres)": { "main": [[{ "node": "¿Vehículo retirado?", "type": "main", "index": 0 }]] },
+    "¿Vehículo retirado?": { "main": [[{ "node": "Responder retiro", "type": "main", "index": 0 }], [{ "node": "Responder no encontrado", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

@@ -1,0 +1,43 @@
+{
+  "id": "parkPaymentsCatV1",
+  "name": "Parqueadero - Catálogo de modalidades",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "GET", "path": "panel/parqueadero/pagos/catalogos", "responseMode": "responseNode", "options": {} },
+      "id": "c1000001-0001-4001-8001-000000000001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-500, 0], "webhookId": "panel-parqueadero-pagos-catalogos"
+    },
+    {
+      "parameters": { "jsCode": "const crypto = require('crypto');\nconst fail = (statusCode, error) => [{ json: { authorized: false, statusCode, error } }];\nconst authorization = $json.headers?.authorization ?? '';\nif (!authorization.startsWith('Bearer ')) return fail(401, 'Sesión requerida.');\nconst secret = $env.JWT_SECRET;\nif (!secret) return fail(500, 'JWT_SECRET no está configurado.');\ntry {\n const token = authorization.slice(7).trim(); const [h,p,s,x] = token.split('.'); if (!h || !p || !s || x) throw new Error();\n const expected = crypto.createHmac('sha256', secret).update(`${h}.${p}`).digest('base64url'); const left=Buffer.from(s); const right=Buffer.from(expected); if(left.length!==right.length || !crypto.timingSafeEqual(left,right)) throw new Error();\n const payload=JSON.parse(Buffer.from(p,'base64url').toString('utf8')); if(!payload.exp || payload.exp<=Math.floor(Date.now()/1000)) throw new Error();\n const role=String(payload.rol ?? payload.role ?? '').toUpperCase(); const permissions=(Array.isArray(payload.permisos)?payload.permisos:[]).map(v=>String(v).toLowerCase());\n if(role!=='ADMINISTRADOR_PARKING' && !permissions.includes('parqueadero.ver') && !permissions.includes('parqueadero.gestionar')) return fail(403,'No tiene permisos para consultar parqueadero.');\n return [{json:{authorized:true}}];\n} catch { return fail(401,'La sesión es inválida o ha vencido.'); }" },
+      "id": "c1000001-0001-4001-8001-000000000002", "name": "Validar sesión", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-280, 0]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "authorized", "leftValue": "={{ $json.authorized }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "c1000001-0001-4001-8001-000000000003", "name": "¿Sesión autorizada?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [-60, 0]
+    },
+    {
+      "parameters": { "operation": "executeQuery", "query": "SELECT id::int AS \"id\", modalidad AS \"modality\", tipo_vehiculo AS \"vehicleType\", COALESCE(precio, 0)::double precision AS \"amount\"\nFROM public.parqueadero_modalidades\nWHERE activo = TRUE\nORDER BY modalidad, tipo_vehiculo;", "options": {} },
+      "id": "c1000001-0001-4001-8001-000000000004", "name": "Consultar modalidades (Postgres)", "type": "n8n-nodes-base.postgres", "typeVersion": 2.6, "position": [180, -100], "alwaysOutputData": true,
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": { "jsCode": "const modalities=$input.all().map(item=>item.json).filter(item=>item.id!=null); return [{json:{modalities}}];" },
+      "id": "c1000001-0001-4001-8001-000000000005", "name": "Formatear catálogo", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [420, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": { "responseCode": 200 } },
+      "id": "c1000001-0001-4001-8001-000000000006", "name": "Responder catálogo", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [650, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "c1000001-0001-4001-8001-000000000007", "name": "Responder error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [180, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Validar sesión", "type": "main", "index": 0 }]] },
+    "Validar sesión": { "main": [[{ "node": "¿Sesión autorizada?", "type": "main", "index": 0 }]] },
+    "¿Sesión autorizada?": { "main": [[{ "node": "Consultar modalidades (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Consultar modalidades (Postgres)": { "main": [[{ "node": "Formatear catálogo", "type": "main", "index": 0 }]] },
+    "Formatear catálogo": { "main": [[{ "node": "Responder catálogo", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}, "settings": { "executionOrder": "v1" }, "active": false
+}

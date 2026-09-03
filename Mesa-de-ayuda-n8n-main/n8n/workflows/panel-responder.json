@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Responder Ticket",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "PATCH",
+        "path": "panel/tickets/responder",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-tickets-responder"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const t = auth.slice(7); const parts = t.split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  const expected = b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest());\n  if(expected !== s) return null;\n  let claims;\n  try { claims = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(claims.exp && claims.exp < Math.floor(Date.now()/1000)) return null;\n  return claims;\n}\n\nconst { Client } = require('pg');\nconst nodemailer = require('nodemailer');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }];\nconst body = $json.body || {};\nconst id = Number(body.id || 0);\nconst estado = String(body.estado || '');\nconst respuesta = body.respuesta ? String(body.respuesta) : null;\nif(!['Pendiente','En Proceso','Resuelto'].includes(estado))\n  return [{ json: { _status:400, _body:{ ok:false, error:{ code:'VALIDACION', message:'Estado inválido' } } } }];\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const cur = await client.query(\n    `SELECT t.estado, t.responsable_id, t.tipo_solicitud_id, t.codigo, e.nombres, e.correo\n     FROM tickets t JOIN estudiantes e ON e.id = t.estudiante_id WHERE t.id = $1`, [id]);\n  if(!cur.rows.length) return [{ json: { _status:404, _body:{ ok:false, error:{ code:'NO_ENCONTRADO', message:'Ticket no existe' } } } }];\n  const t = cur.rows[0];\n  const puede = (await client.query(\n    'SELECT 1 FROM rol_tipos_solicitud WHERE rol_id = $1 AND tipo_solicitud_id = $2',\n    [Number(claims.rol_id), t.tipo_solicitud_id])).rowCount > 0;\n  if(!puede)\n    return [{ json: { _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'Su rol no atiende este tipo de trámite' } } } }];\n  // Queda como responsable quien lo atiende\n  await client.query('UPDATE tickets SET estado=$1, responsable_id=$2, actualizado_en=now() WHERE id=$3',\n    [estado, Number(claims.sub), id]);\n  await client.query(\n    'INSERT INTO ticket_historial (ticket_id, estado_anterior, estado_nuevo, respuesta, usuario_id) VALUES ($1,$2,$3,$4,$5)',\n    [id, t.estado, estado, respuesta, Number(claims.sub)]);\n  if(respuesta){\n    const _rawtx = nodemailer.createTransport({ host: $env.SMTP_HOST, port: Number($env.SMTP_PORT||465), secure: String($env.SMTP_SECURE||'true')!=='false', auth: $env.SMTP_USER ? { user: $env.SMTP_USER, pass: $env.SMTP_PASS } : undefined, tls: { rejectUnauthorized: false } }); const tx = { sendMail: async (m) => { try { return await _rawtx.sendMail(m); } catch(e) { console.log('YaviBot: correo no enviado -', e.message); } } };\n    await tx.sendMail({ from: ($env.SMTP_FROM || $env.SMTP_USER || 'no-reply@yavibot.local'), to:t.correo,\n      subject:`Respuesta a tu ticket ${t.codigo}`,\n      text:`Hola ${t.nombres},\\n\\nTu ticket ${t.codigo} fue actualizado al estado: ${estado}.\\n\\nRespuesta del responsable:\\n${respuesta}\\n\\nInstituto Superior Tecnológico Yavirac` });\n  }\n  return [{ json: { _status:200, _body:{ ok:true, data:{ codigo:t.codigo, estado } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

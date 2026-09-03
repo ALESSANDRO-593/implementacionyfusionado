@@ -1,0 +1,81 @@
+{
+  "name": "Admin - Importar Docentes",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "admin/import/docentes",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-admin-import-docentes"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const parts = auth.slice(7).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\n\nconst { Client } = require('pg');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return [{ json:{ _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }];\nif(claims.rol !== 'SUPERADMIN') return [{ json:{ _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'Solo el super administrador puede cargar datos' } } } }];\n\nconst registros = ($json.body || {}).registros || [];\nif(!Array.isArray(registros) || registros.length === 0)\n  return [{ json:{ _status:400, _body:{ ok:false, error:{ code:'VALIDACION', message:'El archivo no contiene registros' } } } }];\n\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const errores = [];\n  const ced=[], nom=[], cor=[]; const vistos = new Set();\n  for(let i=0;i<registros.length;i++){\n    const r = registros[i] || {};\n    const cedula = String(r.cedula ?? '').trim().replace(/\\D/g,'').padStart(10,'0');\n    const nombre = String(r.nombre_docente ?? r.nombre_docentes ?? r.nombre ?? '').trim();\n    const correo = String(r.correo ?? '').trim().toLowerCase();\n    if(!/^[0-9]{10}$/.test(cedula)) { errores.push({fila:i+1, motivo:'Cédula inválida', valor:r.cedula}); continue; }\n    if(vistos.has(cedula)) { errores.push({fila:i+1, motivo:'Cédula duplicada en el archivo', valor:cedula}); continue; }\n    if(!nombre || !correo) { errores.push({fila:i+1, motivo:'Faltan nombre o correo', valor:cedula}); continue; }\n    vistos.add(cedula);\n    ced.push(cedula); nom.push(nombre); cor.push(correo);\n  }\n\n  let insertados=0, actualizados=0, omitidos=0;\n  if(ced.length){\n    const q = await client.query(\n      `INSERT INTO docentes (cedula, nombre_docente, correo)\n       SELECT * FROM unnest($1::varchar[], $2::varchar[], $3::varchar[])\n       ON CONFLICT (cedula) DO UPDATE SET nombre_docente=EXCLUDED.nombre_docente, correo=EXCLUDED.correo, actualizado_en=now()\n       WHERE (docentes.nombre_docente, docentes.correo) IS DISTINCT FROM (EXCLUDED.nombre_docente, EXCLUDED.correo)\n       RETURNING (xmax = 0) AS inserted`,\n      [ced, nom, cor]);\n    insertados = q.rows.filter(r => r.inserted).length;\n    actualizados = q.rows.length - insertados;\n    omitidos = ced.length - q.rows.length;\n  }\n  await client.query(\n    'INSERT INTO importaciones (tipo, archivo, insertados, actualizados, omitidos, errores, usuario_ref) VALUES ($1,$2,$3,$4,$5,$6,$7)',\n    ['docentes', String(($json.body||{}).archivo || 'carga'), insertados, actualizados, omitidos, JSON.stringify(errores.slice(0,200)), String(claims.sub)]);\n  return [{ json:{ _status:200, _body:{ ok:true, data:{ insertados, actualizados, omitidos, errores: errores.length, total: registros.length, detalleErrores: errores.slice(0,50) } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,705 @@
+.header-bot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
+  .avatar-bot {
+    background: #ffffff;
+    border-radius: 50%;
+    width: 42px;
+    height: 42px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    flex: 0 0 auto;
+    padding: 4px;
+    box-sizing: border-box;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+    }
+  }
+
+  .header-textos {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+
+    .nombre-bot {
+      font-weight: 700;
+      font-size: 16px;
+    }
+
+    .subtitulo-bot {
+      font-size: 11px;
+      opacity: 0.85;
+    }
+  }
+}
+
+.tarjeta-parqueadero { width: min(100%, 390px); overflow: hidden; }
+.estado-parqueadero { display: block; margin: 14px 0 8px; padding: 8px 12px; border-radius: 999px; background: #fff1c2; color: #8a5a00; font-size: 0.76rem; font-weight: 800; text-align: center; }
+.estado-parqueadero-aprobado { background: #dff7e8; color: #16733b; }
+.estado-parqueadero-rechazado { background: #fde4e4; color: #a12626; }
+.nota-parqueadero { margin: 10px 0 4px; color: var(--ion-color-medium-shade); font-size: 0.82rem; line-height: 1.4; }
+
+// ── Banner persistente de "sin conexión" (debajo del header, siempre
+// visible mientras dure — no solo un aviso puntual al intentar algo). Mismo
+// lenguaje "tarjeta con franja superior" que .tarjeta-recaptcha, en tono de
+// alerta (igual gradiente que .franja-alerta) ──────────────────────────────
+.banner-sin-conexion {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 10px 10px 0;
+  padding: 10px 14px;
+  background: #ffffff;
+  color: #c4460a;
+  font-size: 12.5px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  border: 1px solid #ffd9ad;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(230, 81, 0, 0.12);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--ion-color-danger), var(--ion-color-secondary));
+  }
+
+  ion-icon {
+    font-size: 17px;
+    flex-shrink: 0;
+  }
+}
+
+.chat-content {
+  --background: var(--ion-color-light);
+}
+
+.chat-lista {
+  padding: 12px 10px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.fila {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  animation: mensaje-entrada 0.28s ease-out;
+}
+
+@keyframes mensaje-entrada {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.fila-usuario {
+  justify-content: flex-end;
+}
+
+.avatar-mini {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.12);
+  padding: 3px;
+  box-sizing: border-box;
+
+  img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+}
+
+.burbuja {
+  max-width: 78%;
+  padding: 10px 14px;
+  border-radius: 16px;
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+
+.burbuja-bot {
+  background: #ffffff;
+  color: #1f2430;
+  border-bottom-left-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+.burbuja-usuario {
+  background: var(--ion-color-secondary);
+  color: var(--ion-color-secondary-contrast);
+  border-bottom-right-radius: 4px;
+}
+
+.burbuja-escribiendo {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 14px 16px;
+
+  .punto {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #9aa1b1;
+    animation: rebote 1.1s infinite ease-in-out;
+
+    &:nth-child(2) { animation-delay: 0.15s; }
+    &:nth-child(3) { animation-delay: 0.3s; }
+  }
+}
+
+@keyframes rebote {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-4px); opacity: 1; }
+}
+
+// Color de texto fijo (no ligado a variables de tema): estas tarjetas son
+// deliberadamente claras (fondo blanco), así que el texto debe quedar oscuro
+// SIEMPRE — si no, en modo oscuro del sistema el texto hereda blanco de
+// --ion-text-color y queda invisible sobre el fondo blanco de la tarjeta.
+.tarjeta {
+  background: #ffffff;
+  color: #1f2430;
+  border-radius: 16px;
+  border-bottom-left-radius: 4px;
+  padding: 14px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+  max-width: 86%;
+  width: 100%;
+}
+
+.tarjeta-opciones {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 17px;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  }
+
+  ion-chip {
+    --background: #f5f7fb;
+    --color: #1f2430;
+    border: 1px solid #e7e9f2;
+    font-weight: 600;
+    font-size: 13px;
+    transition: background 0.15s ease, border-color 0.15s ease, transform 0.1s ease;
+    cursor: pointer;
+
+    ion-icon {
+      color: var(--ion-color-secondary);
+    }
+
+    &:hover,
+    &:active {
+      --background: linear-gradient(135deg, #f0f3fb, #fdeee5);
+      border-color: #dfe3f0;
+      transform: translateY(-1px);
+    }
+  }
+
+  ion-chip.deshabilitado {
+    opacity: 0.5;
+    pointer-events: none;
+
+    ion-icon {
+      color: #9aa1b4;
+    }
+  }
+}
+
+// ── Tarjetas de vista previa y resultado del Certificado (diseño premium) ──
+// Comparten el mismo lenguaje visual: franja superior degradada, insignia
+// circular, nombre destacado y datos en cuadrícula con etiquetas discretas.
+.tarjeta-preview,
+.tarjeta-certificado {
+  position: relative;
+  overflow: hidden;
+  padding: 0 18px 16px;
+  border: 1px solid #e7e9f2;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(39, 67, 134, 0.08);
+
+  ion-button {
+    margin-top: 4px;
+  }
+}
+
+.tarjeta-preview .franja-superior,
+.tarjeta-certificado .franja-superior {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+}
+
+.encabezado-certificado {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 18px;
+  margin-bottom: 14px;
+
+  .insignia {
+    flex: 0 0 auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, var(--ion-color-secondary), var(--ion-color-secondary-tint, #ff8f4d));
+
+    ion-icon {
+      font-size: 16px;
+      color: #ffffff;
+    }
+  }
+
+  .titulo-certificado {
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--ion-color-primary);
+  }
+}
+
+.nombre-certificado {
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: #1f2430;
+  margin: 0 0 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #eef0f5;
+}
+
+.grid-detalle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  margin-bottom: 14px;
+
+  .campo {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .campo-ancho {
+    grid-column: 1 / -1;
+  }
+
+  .etiqueta {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.6px;
+    text-transform: uppercase;
+    color: #9aa1b4;
+  }
+
+  .valor {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: #1f2430;
+  }
+}
+
+.zona-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 16px 0;
+  border-top: 1px dashed #dde1ec;
+  border-bottom: 1px dashed #dde1ec;
+
+  .marco-qr {
+    padding: 10px;
+    background: #f7f9fd;
+    border: 1px solid #e7e9f2;
+    border-radius: 14px;
+
+    img {
+      display: block;
+      width: 132px;
+      height: 132px;
+    }
+  }
+
+  .codigo-qr {
+    font-family: monospace;
+    font-size: 11px;
+    letter-spacing: 0.4px;
+    color: #9aa1b4;
+  }
+}
+
+.tarjeta-tickets {
+  position: relative;
+  overflow: hidden;
+  padding: 0 18px 16px;
+  border: 1px solid #e7e9f2;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(39, 67, 134, 0.08);
+
+  .franja-superior {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  }
+
+  .fila-ticket {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 8px 0;
+
+    & + .fila-ticket {
+      border-top: 1px solid #eef0f5;
+    }
+  }
+
+  .fila-ticket-encabezado {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .ticket-id {
+    font-family: monospace;
+    font-size: 12.5px;
+    font-weight: 700;
+    color: #1f2430;
+  }
+
+  .ticket-estado {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 10px;
+    white-space: nowrap;
+
+    &.estado-completado {
+      background: #e1f6ea;
+      color: #1c8a4d;
+    }
+
+    &.estado-proceso {
+      background: #fff3e0;
+      color: #b3690b;
+    }
+
+    &.estado-rechazado {
+      background: #fde8e8;
+      color: #c62a2a;
+    }
+  }
+
+  .ticket-tipo {
+    font-size: 13.5px;
+    color: #1f2430;
+  }
+
+  .ticket-fecha {
+    font-size: 12px;
+    color: #6b7280;
+  }
+}
+
+.tarjeta-recaptcha {
+  position: relative;
+  overflow: hidden;
+  margin: 10px 10px 0;
+  background: #ffffff;
+  border: 1px solid #e7e9f2;
+  border-radius: 14px;
+  box-shadow: 0 4px 18px rgba(39, 67, 134, 0.08);
+
+  .franja-superior {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  }
+}
+
+.encabezado-recaptcha {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 14px 0;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--ion-color-primary);
+
+  ion-icon {
+    font-size: 15px;
+    color: var(--ion-color-secondary);
+  }
+}
+
+.recaptcha-contenedor {
+  display: flex;
+  justify-content: center;
+  padding: 6px 10px 10px;
+  transform: scale(0.92);
+  transform-origin: center top;
+}
+
+.input-cedula {
+  --border-radius: 22px;
+  --background: #ffffff;
+  --color: #1f2430;
+  --placeholder-color: #8a90a2;
+  --placeholder-opacity: 1;
+  --padding-start: 16px;
+  margin: 8px 10px;
+  border-radius: 22px;
+  border: 1px solid #e7e9f2;
+  box-shadow: 0 2px 10px rgba(39, 67, 134, 0.1);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+
+  &.item-has-focus,
+  &:focus-within {
+    border-color: var(--ion-color-primary);
+    box-shadow: 0 2px 14px rgba(39, 67, 134, 0.22);
+  }
+
+  ion-input,
+  ion-textarea {
+    --color: #1f2430;
+    --placeholder-color: #8a90a2;
+    --placeholder-opacity: 1;
+  }
+}
+
+.boton-enviar-input {
+  --background: linear-gradient(135deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --background-activated: linear-gradient(135deg, var(--ion-color-primary-shade), var(--ion-color-secondary-shade));
+  --background-hover: linear-gradient(135deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --border-radius: 50%;
+  --color: #ffffff;
+  --padding-start: 0;
+  --padding-end: 0;
+  --box-shadow: none;
+  width: 34px;
+  height: 34px;
+  margin: 0 4px 0 2px;
+  transition: transform 0.1s ease;
+
+  &[disabled] {
+    --background: #e3e6ee;
+    --color: #9aa1b4;
+    opacity: 1;
+  }
+
+  &:not([disabled]):active {
+    transform: scale(0.9);
+  }
+
+  ion-icon {
+    font-size: 16px;
+  }
+}
+
+.error-cedula {
+  color: var(--ion-color-danger);
+  font-size: 12px;
+  margin: 0 16px 8px;
+}
+
+// ── Tarjetas de confirmación (Anulación, Reseteo, Incidencia) — mismo
+// lenguaje visual premium que la tarjeta del certificado ──────────────────
+.tarjeta-anulacion {
+  position: relative;
+  overflow: hidden;
+  padding: 0 18px 16px;
+  border: 1px solid #e7e9f2;
+  background: #ffffff;
+  box-shadow: 0 4px 18px rgba(39, 67, 134, 0.08);
+
+  .franja-superior {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+
+    &.franja-alerta {
+      background: linear-gradient(90deg, var(--ion-color-danger), var(--ion-color-secondary));
+    }
+  }
+
+  .insignia.insignia-alerta {
+    background: linear-gradient(135deg, var(--ion-color-danger), #ff6b6b);
+  }
+
+  .aviso-anulacion {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 12px;
+    color: #e65100;
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    border-radius: 4px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+
+    ion-icon { font-size: 16px; flex-shrink: 0; margin-top: 2px; }
+  }
+
+  .botones-anulacion {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+}
+
+.foto-incidencia-preview {
+  width: 100%;
+  max-height: 180px;
+  object-fit: cover;
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+
+// ── Adjuntar foto (reporte de incidencia) ───────────────────────────────────
+.adjuntar-foto {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 10px;
+
+  ion-button {
+    position: relative;
+
+    input[type='file'] {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+  }
+}
+
+.boton-adjuntar-foto {
+  --background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --background-activated: linear-gradient(90deg, var(--ion-color-primary-shade), var(--ion-color-secondary-shade));
+  --background-hover: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --color: #ffffff;
+  --border-radius: 12px;
+  --box-shadow: 0 4px 14px rgba(39, 67, 134, 0.28);
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.boton-continuar-sin-foto {
+  --color: #9aa1b4;
+  font-weight: 600;
+  font-size: 13px;
+  text-transform: none;
+}
+
+// ── Botón "Reenviar código" (pantalla de espera del ticket OTP) — mismo
+// lenguaje "pastilla" que .boton-volver-menu ───────────────────────────────
+.boton-reenviar-ticket {
+  --color: var(--ion-color-primary);
+  --background: #eef1fa;
+  --background-activated: #e2e7f5;
+  --background-hover: #e2e7f5;
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+  font-weight: 600;
+  font-size: 12.5px;
+  text-transform: none;
+  height: 30px;
+  margin: 6px auto 4px;
+  display: block;
+  width: fit-content;
+
+  &[disabled] {
+    --color: #b6bccb;
+    --background: #f2f3f7;
+  }
+}
+
+// ── Botón "Volver al menú" ──────────────────────────────────────────────────
+.boton-volver-menu {
+  --color: var(--ion-color-primary);
+  --background: #eef1fa;
+  --background-activated: #e2e7f5;
+  --background-hover: #e2e7f5;
+  --border-radius: 12px;
+  --padding-start: 12px;
+  --padding-end: 14px;
+  font-weight: 600;
+  font-size: 13px;
+  margin: 6px 10px;
+  height: 34px;
+}
+
+// ── Botón "Iniciar nueva conversación" (fin de la conversación) ────────────
+.boton-nueva-conversacion {
+  --background: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --background-activated: linear-gradient(90deg, var(--ion-color-primary-shade), var(--ion-color-secondary-shade));
+  --background-hover: linear-gradient(90deg, var(--ion-color-primary), var(--ion-color-secondary));
+  --color: #ffffff;
+  --border-radius: 14px;
+  --box-shadow: 0 4px 14px rgba(39, 67, 134, 0.28);
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  margin: 6px 10px;
+}

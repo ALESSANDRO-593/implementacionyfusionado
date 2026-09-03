@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Listar Alertas",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "panel/alertas",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-alertas"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const parts = auth.slice(7).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\nfunction unauth(){ return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }]; }\nfunction forbidden(){ return [{ json: { _status:403, _body:{ ok:false, error:{ code:'SIN_PERMISO', message:'No autorizado' } } } }]; }\n\nconst { Client } = require('pg');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return unauth();\n// Quien tenga ALERTA_LAB asignada GESTIONA (ve y resuelve todas);\n// el resto del personal REPORTA y ve unicamente las suyas.\nconst rolId = Number(claims.rol_id);\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const base = `SELECT a.id, a.codigo, l.nombre AS laboratorio, a.descripcion, a.estado,\n      a.adjunto_id, p.nombres AS profesor, to_char(a.creado_en,'DD/MM/YYYY') AS fecha\n    FROM alertas a JOIN laboratorios l ON l.id=a.laboratorio_id\n    JOIN usuarios_panel p ON p.id=a.profesor_id`;\n  const gestiona = (await client.query(\n    `SELECT 1 FROM rol_tipos_solicitud rt JOIN tipos_solicitud t ON t.id = rt.tipo_solicitud_id\n      WHERE rt.rol_id = $1 AND t.codigo = 'ALERTA_LAB'`, [rolId])).rowCount > 0;\n  const q = !gestiona\n    ? await client.query(base + ' WHERE a.profesor_id=$1 ORDER BY a.creado_en DESC', [Number(claims.sub)])\n    : await client.query(base + ' ORDER BY a.creado_en DESC');\n  // 'gestiona' viaja al frontend para que no tenga que repetir la regla.\n  return [{ json: { _status:200, _body:{ ok:true, data:{ items:q.rows, gestiona } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

@@ -1,0 +1,28 @@
+// This file can be replaced during build by using the `fileReplacements` array.
+// `ng build` replaces `environment.ts` with `environment.prod.ts`.
+// The list of file replacements can be found in `angular.json`.
+
+export const environment = {
+  production: false,
+  usarMock: false,
+  // n8n compartido con el equipo web (VPS institucional) — tus workflows
+  // corren ahí, apuntando a la misma base de datos real que usa su panel.
+  n8nBaseUrl: 'http://localhost:5678/webhook',
+  apiKey: 'jZtUx2MlGnNOwzBcovu-ykTdlAtyIlvHWdLVmY79R_Y',
+  // reCAPTCHA v2 real ("YaviBot Chat" en google.com/recaptcha/admin),
+  // registrada con la cuenta mesadeayuda@yavirac.edu.ec, con dominio
+  // autorizado localhost. Antes de desplegar al VPS, agregar el dominio
+  // real del instituto a la lista de dominios de ESTA misma clave (no hace
+  // falta generar una nueva) — la Secret Key pareja vive en el nodo
+  // "Verificar CAPTCHA (Google)" de workflow-consultar-estudiante.json.
+  recaptchaSiteKey: '6LeuMWUtAAAAAEBTzcrnzI15rw-nbShRQei3hGCY'
+};
+
+/*
+ * For easier debugging in development mode, you can import the following file
+ * to ignore zone related error stack frames such as `zone.run`, `zoneDelegate.invokeTask`.
+ *
+ * This import should be commented out in production mode because it will have a negative impact
+ * on performance if an error is thrown.
+ */
+// import 'zone.js/plugins/zone-error';  // Included with Angular CLI.

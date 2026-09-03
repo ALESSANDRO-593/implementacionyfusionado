@@ -1,0 +1,52 @@
+<div class="loginpage">
+  <!-- Panel izquierdo (azul institucional) -->
+  <aside class="hero">
+    <img class="hero__logo" src="assets/logo-yavirac.png" alt="Instituto Superior Tecnológico Yavirac" />
+
+    <p class="hero__eyebrow">Instituto Superior Tecnológico Yavirac</p>
+    <h1 class="hero__title">Bienvenido</h1>
+    <p class="hero__subtitle">Organiza tu trámite académico</p>
+    <p class="hero__cta">AQUÍ</p>
+    <span class="hero__rule"></span>
+
+    <img class="hero__profesor" src="assets/chatbot-profesor.png" alt="YaviBot, asistente del profesor" />
+    <p class="hero__foot">SISTEMA DE SEGUIMIENTO DE TICKETS</p>
+  </aside>
+
+  <!-- Panel derecho (claro) con la tarjeta de login -->
+  <section class="formpane">
+    <div class="logincard">
+      <h2 class="logincard__title">Seguimiento de Tickets</h2>
+      <p class="logincard__subtitle">Ingrese sus credenciales para acceder al sistema.</p>
+
+      <label class="field">
+        <span class="field__label">Usuario</span>
+        <div class="field__control">
+          <span class="field__icon">👤</span>
+          <input type="text" [ngModel]="cedula()" (ngModelChange)="cedula.set($event)"
+                 (keyup.enter)="entrar()" placeholder="Número de cédula" autocomplete="username" />
+        </div>
+      </label>
+
+      <label class="field">
+        <span class="field__label">Contraseña</span>
+        <div class="field__control">
+          <span class="field__icon">🔒</span>
+          <input type="password" [ngModel]="password()" (ngModelChange)="password.set($event)"
+                 (keyup.enter)="entrar()" placeholder="Contraseña" autocomplete="current-password" />
+        </div>
+      </label>
+
+      <div class="logincard__row">
+        <label class="check"><input type="checkbox" /> Recordarme</label>
+        <a class="link" href="javascript:void(0)">¿Olvidó su contraseña?</a>
+      </div>
+
+      @if (error()) { <p class="logincard__error">{{ error() }}</p> }
+
+      <button class="loginbtn" (click)="entrar()" [disabled]="cargando()">
+        {{ cargando() ? 'Ingresando…' : 'Iniciar Sesión' }}
+      </button>
+    </div>
+  </section>
+</div>

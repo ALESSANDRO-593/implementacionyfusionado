@@ -1,0 +1,81 @@
+{
+  "name": "Chatbot - Consultar Tickets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "chatbot/tickets",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-chatbot-tickets"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyChat(token){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!token) return null;\n  const parts = String(token).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.typ !== 'chat') return null;\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\n\nconst { Client } = require('pg');\nconst claims = verifyChat($json.headers['x-chat-session'] || $json.headers['X-Chat-Session']);\nif(!claims) return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión de chat no válida' } } } }];\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const q = await client.query(\n    `SELECT t.codigo, ts.nombre AS tipo, to_char(t.creado_en,'DD/MM/YYYY') AS fecha_creacion,\n       t.estado, to_char(t.actualizado_en,'DD/MM/YYYY') AS ultima_actualizacion,\n       (SELECT h.respuesta FROM ticket_historial h WHERE h.ticket_id = t.id AND h.respuesta IS NOT NULL ORDER BY h.id DESC LIMIT 1) AS respuesta\n     FROM tickets t JOIN estudiantes e ON e.id = t.estudiante_id JOIN tipos_solicitud ts ON ts.id = t.tipo_solicitud_id\n     WHERE e.cedula = $1 ORDER BY t.creado_en DESC`, [claims.sub]);\n  return [{ json: { _status:200, _body:{ ok:true, data: q.rows } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

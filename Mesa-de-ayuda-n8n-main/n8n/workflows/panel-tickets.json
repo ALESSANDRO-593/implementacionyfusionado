@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Lista Tickets",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "panel/tickets",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-tickets"
+    },
+    {
+      "parameters": {
+        "jsCode": "function verifyJWT(auth){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!auth || !auth.startsWith('Bearer ')) return null;\n  const t = auth.slice(7); const parts = t.split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  const expected = b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest());\n  if(expected !== s) return null;\n  let claims;\n  try { claims = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(claims.exp && claims.exp < Math.floor(Date.now()/1000)) return null;\n  return claims;\n}\n\nconst { Client } = require('pg');\nconst claims = verifyJWT($json.headers.authorization || $json.headers.Authorization);\nif(!claims) return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión no válida' } } } }];\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const q = await client.query(\n    `SELECT t.id, t.codigo, e.nombres AS solicitante, ts.nombre AS tipo,\n       to_char(t.creado_en,'DD/MM/YYYY') AS fecha, t.estado, u.nombres AS responsable\n     FROM tickets t JOIN estudiantes e ON e.id = t.estudiante_id\n     JOIN tipos_solicitud ts ON ts.id = t.tipo_solicitud_id\n     LEFT JOIN usuarios_panel u ON u.id = t.responsable_id\n     WHERE $1 = -1\n        OR t.tipo_solicitud_id IN (SELECT tipo_solicitud_id FROM rol_tipos_solicitud WHERE rol_id = $1)\n     ORDER BY t.creado_en DESC`, [Number(claims.rol_id)]);\n  return [{ json: { _status:200, _body:{ ok:true, data:{ items:q.rows, total:q.rows.length } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

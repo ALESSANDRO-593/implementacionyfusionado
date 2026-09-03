@@ -1,0 +1,1036 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>YaviBot — Manual Técnico</title>
+<style>
+  :root {
+    --navy-900: #14305E;
+    --navy-800: #1B3E7B;
+    --navy-700: #24508F;
+    --orange-500: #FF5100;
+    --orange-400: #FF6923;
+    --surface: #FFFFFF;
+    --surface-2: #F5F7FB;
+    --surface-3: #F8FAFC;
+    --border: #E4E8F0;
+    --text-900: #1B2432;
+    --text-700: #374151;
+    --text-500: #6B7280;
+    --text-inverse: #FFFFFF;
+    --text-inverse-dim: #C7D2E8;
+    --success: #1F7A3D;
+    --success-bg: #E7F5EC;
+    --warning: #92620A;
+    --warning-bg: #FDF3DD;
+    --info: #1D6FA8;
+    --info-bg: #E7F2FA;
+    --danger: #B0263A;
+    --danger-bg: #FBEAEC;
+    --font-display: Georgia, "Times New Roman", serif;
+    --font-body: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: "Cascadia Code", Consolas, "SFMono-Regular", Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --surface: #14181F;
+      --surface-2: #1B212C;
+      --surface-3: #202834;
+      --border: #2C3646;
+      --text-900: #E7EBF3;
+      --text-700: #B7C0CF;
+      --text-500: #8993A4;
+      --success-bg: #12291B;
+      --warning-bg: #2E2409;
+      --info-bg: #0F2536;
+      --danger-bg: #301019;
+    }
+  }
+  :root[data-theme="dark"] {
+    --surface: #14181F;
+    --surface-2: #1B212C;
+    --surface-3: #202834;
+    --border: #2C3646;
+    --text-900: #E7EBF3;
+    --text-700: #B7C0CF;
+    --text-500: #8993A4;
+    --success-bg: #12291B;
+    --warning-bg: #2E2409;
+    --info-bg: #0F2536;
+    --danger-bg: #301019;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--surface-2);
+    color: var(--text-900);
+    font-family: var(--font-body);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  .toolbar {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    display: flex;
+    justify-content: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1rem;
+    background: var(--navy-900);
+    color: var(--text-inverse-dim);
+    font-size: 0.85rem;
+  }
+  .toolbar button {
+    font: inherit;
+    color: var(--text-inverse);
+    background: var(--orange-500);
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.9rem;
+    cursor: pointer;
+  }
+  .toolbar span { align-self: center; }
+  .page {
+    max-width: 900px;
+    margin: 0 auto;
+    background: var(--surface);
+    padding: 4rem 4.5rem;
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+  }
+  .page + .page { border-top: 1px solid var(--border); }
+  .cover {
+    background: linear-gradient(160deg, var(--navy-900), var(--navy-800) 65%, var(--navy-700));
+    color: var(--text-inverse);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 4.5rem 4.5rem 3rem;
+  }
+  .eyebrow-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    align-self: flex-start;
+    border: 1px solid rgba(255,255,255,0.35);
+    border-radius: 999px;
+    padding: 0.35rem 0.9rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.04em;
+  }
+  .eyebrow-pill::before {
+    content: "";
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--orange-500);
+  }
+  .cover .institute {
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    font-size: 0.85rem;
+    color: var(--text-inverse-dim);
+    margin-top: 2.5rem;
+  }
+  .cover h1 {
+    font-family: var(--font-display);
+    font-size: 4rem;
+    margin: 0.3rem 0 1rem;
+    text-wrap: balance;
+  }
+  .cover .subtitle {
+    max-width 34rem;
+    max-width: 34rem;
+    font-size: 1.15rem;
+    color: var(--text-inverse-dim);
+    text-wrap: balance;
+  }
+  .cover-meta {
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+    gap: 2.5rem;
+    border-top: 1px solid rgba(255,255,255,0.25);
+    padding-top: 1.5rem;
+  }
+  .cover-meta div { min-width: 0; }
+  .cover-meta .label {
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--text-inverse-dim);
+    margin-bottom: 0.2rem;
+  }
+  .cover-meta .value { font-size: 0.95rem; }
+  .cover-meta .value.author { font-style: italic; }
+
+  .eyebrow {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    font-size: 0.78rem;
+    letter-spacing: 0.1em;
+    color: var(--orange-500);
+    font-weight: 700;
+    margin-bottom: 0.8rem;
+  }
+  .eyebrow .num {
+    font-family: var(--font-mono);
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.1rem 0.45rem;
+    color: var(--text-700);
+  }
+  h2 {
+    font-family: var(--font-display);
+    font-size: 2.1rem;
+    margin: 0 0 1.4rem;
+    text-wrap: balance;
+    color: var(--text-900);
+  }
+  h3 {
+    font-family: var(--font-display);
+    font-size: 1.35rem;
+    margin: 2.2rem 0 0.8rem;
+    color: var(--text-900);
+  }
+  p { max-width: 68ch; color: var(--text-700); }
+  p.lead { font-size: 1.05rem; color: var(--text-900); }
+  ul, ol { max-width: 68ch; color: var(--text-700); padding-left: 1.3rem; }
+  li { margin-bottom: 0.45rem; }
+  li strong { color: var(--text-900); }
+  a { color: var(--navy-700); }
+  :root:not([data-theme="light"]) a { color: #8FB8FF; }
+  code, .mono {
+    font-family: var(--font-mono);
+    font-size: 0.88em;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 0.1em 0.4em;
+  }
+  .callout {
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    border-left: 3px solid var(--navy-700);
+    border-radius: 8px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.4rem 0;
+    max-width: 68ch;
+  }
+  .callout p { margin: 0; max-width: none; }
+  .callout .callout-title { font-weight: 700; color: var(--text-900); display: block; margin-bottom: 0.3rem; }
+  .callout.warn { border-left-color: var(--warning); background: var(--warning-bg); }
+  .callout.info { border-left-color: var(--info); background: var(--info-bg); }
+  .callout.new { border-left-color: var(--success); background: var(--success-bg); }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1.2rem 0 1.8rem;
+    font-size: 0.92rem;
+  }
+  .table-wrap { overflow-x: auto; }
+  th, td {
+    text-align: left;
+    padding: 0.65rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  th {
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--text-500);
+    background: var(--surface-3);
+    white-space: nowrap;
+  }
+  td code { white-space: nowrap; }
+  .badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 0.15rem 0.55rem;
+    border-radius: 999px;
+    white-space: nowrap;
+  }
+  .badge.ok { background: var(--success-bg); color: var(--success); }
+  .badge.warn { background: var(--warning-bg); color: var(--warning); }
+  .badge.info { background: var(--info-bg); color: var(--info); }
+  .badge.off { background: var(--surface-3); color: var(--text-500); border: 1px solid var(--border); }
+
+  .endpoint {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.1rem 1.3rem;
+    margin: 1.2rem 0;
+    max-width: 68ch;
+  }
+  .endpoint-head { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+  .method {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    background: var(--navy-700);
+    color: #fff;
+    border-radius: 5px;
+    padding: 0.2rem 0.5rem;
+  }
+  .endpoint-head code.path { background: none; border: none; padding: 0; font-size: 0.95rem; color: var(--text-900); }
+  .tag { font-size: 0.7rem; border-radius: 999px; padding: 0.1rem 0.5rem; border: 1px solid var(--border); color: var(--text-500); }
+  .code-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 0.8rem; }
+  .code-pair .label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-500); margin-bottom: 0.3rem; }
+  pre {
+    background: var(--navy-900);
+    color: #DCE6FA;
+    border-radius: 8px;
+    padding: 0.8rem 0.9rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    margin: 0;
+  }
+  .status-list { font-size: 0.85rem; margin-top: 0.6rem; }
+  .status-list div { display: flex; gap: 0.6rem; margin-bottom: 0.25rem; }
+  .status-list .code { font-family: var(--font-mono); font-weight: 700; min-width: 2.4rem; }
+  .status-list .code.s2 { color: var(--success); }
+  .status-list .code.s4 { color: var(--warning); }
+  .status-list .code.s5 { color: var(--danger); }
+
+  .tree {
+    background: var(--navy-900);
+    color: #DCE6FA;
+    border-radius: 10px;
+    padding: 1.2rem 1.4rem;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    max-width: 68ch;
+  }
+  .tree .dim { color: #7C8CB0; }
+  .tree .hl { color: #FFB380; }
+
+  .steps { counter-reset: step; list-style: none; padding: 0; max-width: 68ch; }
+  .steps li {
+    counter-increment: step;
+    position: relative;
+    padding-left: 2.6rem;
+    margin-bottom: 1rem;
+  }
+  .steps li::before {
+    content: counter(step);
+    position: absolute; left: 0; top: 0;
+    width: 1.7rem; height: 1.7rem;
+    border-radius: 50%;
+    background: var(--surface-3);
+    border: 1px solid var(--border);
+    color: var(--text-900);
+    font-weight: 700;
+    font-size: 0.85rem;
+    display: flex; align-items: center; justify-content: center;
+  }
+
+  .glossary dt { font-weight: 700; color: var(--text-900); margin-top: 0.9rem; }
+  .glossary dd { margin: 0.15rem 0 0; color: var(--text-700); max-width: 60ch; }
+
+  footer.page-footer {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--text-500);
+    border-top: 1px solid var(--border);
+    padding-top: 1rem;
+    margin-top: 3rem;
+  }
+
+  @media print {
+    .toolbar { display: none; }
+    body { background: var(--surface); }
+    .page {
+      border: none;
+      max-width: none;
+      padding: 1.2cm 1.4cm;
+      page-break-after: always;
+    }
+    .cover { min-height: auto; height: 100vh; padding: 2.2cm 1.6cm 1.4cm; }
+    pre, .callout, table, .endpoint { break-inside: avoid; }
+  }
+  @media (max-width: 700px) {
+    .page { padding: 2.2rem 1.3rem; }
+    .cover { padding: 2.2rem 1.5rem 1.6rem; }
+    .cover h1 { font-size: 2.6rem; }
+    .cover-meta { grid-template-columns: repeat(2, auto); }
+    .code-pair { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <span>Manual Técnico — YaviBot</span>
+  <button onclick="window.print()">Imprimir / Guardar como PDF</button>
+</div>
+
+<!-- COVER -->
+<section class="page cover">
+  <div>
+    <span class="eyebrow-pill">Documento técnico de proyecto</span>
+    <div class="institute">Instituto Superior Tecnológico de Turismo y Patrimonio "Yavirac"</div>
+    <h1>YaviBot</h1>
+    <p class="subtitle">Manual técnico del sistema de Certificado de Matrícula, trámites automatizados
+      y verificación de documentos por código QR — incluye el despliegue en el servidor
+      institucional compartido.</p>
+  </div>
+  <div class="cover-meta">
+    <div>
+      <div class="label">Autor</div>
+      <div class="value author">Andrew Carrera</div>
+    </div>
+    <div>
+      <div class="label">Tutora</div>
+      <div class="value">Elizabeth Mera</div>
+    </div>
+    <div>
+      <div class="label">Versión del documento</div>
+      <div class="value">1.1</div>
+    </div>
+    <div>
+      <div class="label">Fecha</div>
+      <div class="value">Agosto 2026</div>
+    </div>
+  </div>
+</section>
+
+<!-- 01 INTRODUCCIÓN -->
+<section class="page">
+  <div class="eyebrow"><span class="num">01</span> INTRODUCCIÓN</div>
+  <h2>Descripción general del sistema</h2>
+  <p class="lead">YaviBot es un asistente conversacional para estudiantes y docentes del Instituto
+    Yavirac, construido como aplicación móvil híbrida (Ionic/Angular) con un backend de
+    automatización (n8n) que actúa como API completa sobre una base de datos PostgreSQL
+    institucional.</p>
+  <p>El sistema resuelve, de principio a fin y sin intervención de un panel administrativo
+    dedicado, los trámites de emisión de Certificado de Matrícula con verificación pública por
+    código QR, Anulación de Matrícula, y Reporte de Incidencias de Laboratorio (para el rol
+    docente). El Reseteo de Contraseña del correo institucional está implementado a nivel de
+    backend pero, en la versión actualmente publicada, no se expone como opción del menú —
+    ver <a href="#seccion-07">sección 7</a>.</p>
+  <p>La identidad del usuario se resuelve con un único flujo, sin pantalla de login: cédula de
+    identidad seguida de un código de verificación de un solo uso (OTP) enviado al correo
+    institucional. El mismo flujo distingue automáticamente si quien lo usa es un estudiante o un
+    docente, y adapta el menú de opciones que ve.</p>
+
+  <div class="callout">
+    <span class="callout-title">Principio rector del proyecto</span>
+    <p>n8n no consume una API: n8n <em>es</em> la API. No existe un servidor Node/Express/NestJS
+      intermedio. Cada trámite es un workflow de n8n con un nodo Webhook como punto de entrada;
+      toda la lógica de negocio —validaciones, generación de códigos únicos, reglas de
+      idempotencia— vive dentro de esos workflows.</p>
+  </div>
+
+  <h3>Alcance dentro del proyecto de titulación</h3>
+  <p>Este manual documenta la <strong>aplicación móvil</strong> del proyecto de titulación
+    "Desarrollo de una aplicación web y móvil para automatizar los procesos de mesa de ayuda
+    mediante la herramienta de orquestación n8n en el Instituto Superior Tecnológico Yavirac". El
+    objetivo general del proyecto es optimizar los procesos administrativos del instituto
+    reduciendo los tiempos de atención y seguimiento de requerimientos; esta app cubre
+    específicamente los trámites de <strong>Estudiante</strong> y el rol <strong>Docente</strong>
+    descritos en la sección <a href="#seccion-07">Trámites del sistema</a>. La gestión
+    administrativa (paneles de Secretaría/TI, seguimiento de tickets, asignación manual)
+    corresponde a la aplicación web del proyecto, construida de forma independiente por otro
+    equipo — desde agosto de 2026 ambas aplicaciones operan <strong>integradas sobre el mismo
+    servidor y la misma base de datos institucional real</strong>, ver
+    <a href="#seccion-11">sección 11, Despliegue en producción</a>.</p>
+</section>
+
+<!-- 02 ARQUITECTURA -->
+<section class="page">
+  <div class="eyebrow"><span class="num">02</span> ARQUITECTURA</div>
+  <h2>Arquitectura general</h2>
+  <p class="lead">Tres capas, con una responsabilidad clara y sin lógica de negocio filtrándose
+    entre ellas.</p>
+
+  <div class="tree">
+App Ionic <span class="dim">(certi-matricula-app · presentación)</span>
+  │  <span class="hl">HTTPS / JSON</span>
+  ▼
+n8n <span class="dim">(API + lógica de negocio)</span>
+  │  <span class="hl">SQL</span>
+  ▼
+PostgreSQL <span class="dim">(esquema compartido con la web)</span>
+  </div>
+
+  <h3>Capa 1 — Presentación</h3>
+  <p>La app Ionic/Angular (<code>certi-matricula-app/</code>) no contiene reglas de negocio: solo
+    llama webhooks y renderiza lo que reciben. La identidad del usuario, el menú disponible y el
+    estado de la conversación viven en un único componente de chat conversacional
+    (<code>chat.page.ts</code>) que orquesta cada trámite como una máquina de estados.</p>
+
+  <h3>Capa 2 — API y lógica de negocio</h3>
+  <p>Cada archivo en <code>n8n-backend/workflows/</code> es, a la vez, la definición de un
+    endpoint HTTP y la implementación completa de su lógica: validaciones, verificación de sesión
+    OTP, generación de códigos únicos, envío de correos, idempotencia. No existe una capa de
+    código separada — los nodos Webhook, Postgres, IF y Code de cada workflow son, literalmente,
+    el backend.</p>
+
+  <h3>Capa 3 — Datos</h3>
+  <p>PostgreSQL 16. El esquema es real y compartido con el sistema web/panel administrativo del
+    instituto (~25 tablas en total); esta app únicamente lee y escribe el subconjunto que necesita
+    (ver <a href="#seccion-04">Modelo de datos</a>). Si el esquema cambia, solo se ajustan los
+    nodos Postgres de los workflows afectados — el contrato hacia la app no cambia.</p>
+
+  <div class="callout">
+    <span class="callout-title">Por qué importa esta separación</span>
+    <p>Permite que dos equipos (esta app y el sistema web) construyan de forma independiente sobre
+      la misma base de datos, sin coordinar despliegues, mientras respeten las mismas
+      restricciones de integridad (claves únicas, estados válidos) definidas a nivel de esquema.
+      Esto dejó de ser un principio de diseño y pasó a ser un hecho verificado: en agosto de 2026
+      los workflows de esta app se desplegaron junto a los del equipo web, en la misma instancia
+      de n8n y la misma base de datos, sin modificar el trabajo del otro equipo — ver
+      <a href="#seccion-11">sección 11</a>.</p>
+  </div>
+</section>
+
+<!-- 03 TECNOLOGÍA -->
+<section class="page">
+  <div class="eyebrow"><span class="num">03</span> TECNOLOGÍA</div>
+  <h2>Stack tecnológico</h2>
+
+  <h3>Frontend — aplicación móvil</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Componente</th><th>Tecnología</th><th>Rol</th></tr></thead>
+    <tbody>
+      <tr><td>Framework UI</td><td><code>@ionic/angular</code> 8</td><td>Componentes híbridos, apariencia nativa</td></tr>
+      <tr><td>Framework de aplicación</td><td><code>@angular/core</code> 20</td><td>Componentes, servicios, inyección de dependencias</td></tr>
+      <tr><td>Runtime nativo</td><td><code>@capacitor/core</code> 8</td><td>Empaquetado Android/iOS, plugin de estado de red</td></tr>
+      <tr><td>Lenguaje</td><td>TypeScript 5.9</td><td>Tipado estático en toda la app</td></tr>
+      <tr><td>Reactividad</td><td>RxJS 7.8</td><td>Observables para las llamadas HTTP a n8n</td></tr>
+      <tr><td>Generación de PDF</td><td><code>jspdf</code></td><td>Certificado de matrícula con membrete oficial, generado en el navegador</td></tr>
+      <tr><td>Generación de QR</td><td><code>qrcode</code></td><td>Código QR del certificado, a partir de la URL de verificación</td></tr>
+      <tr><td>Verificación humana</td><td>Google reCAPTCHA v2</td><td>Casilla de verificación en el único paso sin OTP previo</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Backend — automatización</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Componente</th><th>Tecnología</th><th>Rol</th></tr></thead>
+    <tbody>
+      <tr><td>Motor de workflows / API</td><td>n8n (self-hosted)</td><td>Único backend — cada workflow es un endpoint</td></tr>
+      <tr><td>Base de datos</td><td>PostgreSQL 16</td><td>Esquema institucional compartido</td></tr>
+      <tr><td>Envío de correo</td><td>SMTP (mesa de ayuda)</td><td>OTP, confirmaciones, avisos a responsables</td></tr>
+      <tr><td>Orquestación local</td><td>Docker + Docker Compose</td><td>Contenedores de n8n y PostgreSQL para desarrollo</td></tr>
+      <tr><td>Servidor web / proxy</td><td>nginx</td><td>Sirve la app y el panel, enruta <code>/webhook/</code> a n8n en producción</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- 04 DATOS -->
+<section class="page" id="seccion-04">
+  <div class="eyebrow"><span class="num">04</span> DATOS</div>
+  <h2>Modelo de datos</h2>
+  <p class="lead">El esquema real tiene cerca de 25 tablas para el sistema institucional completo
+    (chatbot + panel administrativo + alertas de laboratorio). YaviBot solo toca el siguiente
+    subconjunto:</p>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Tabla</th><th>Uso</th><th>Para qué</th></tr></thead>
+    <tbody>
+      <tr><td><code>estudiantes</code></td><td>Lectura</td><td>Identificar al estudiante por cédula</td></tr>
+      <tr><td><code>docentes</code></td><td>Lectura</td><td>Segunda identidad — mismo flujo cédula + OTP</td></tr>
+      <tr><td><code>carreras</code> / <code>periodos_academicos</code></td><td>Lectura (JOIN)</td><td>Nombre de carrera y periodo lectivo vigente</td></tr>
+      <tr><td><code>otp_codigos</code></td><td>Lectura/escritura</td><td>Código de verificación y prueba de sesión reciente</td></tr>
+      <tr><td><code>qr_codigos</code></td><td>Lectura/escritura</td><td>Identificador único del certificado, base del QR</td></tr>
+      <tr><td><code>certificados</code></td><td>Lectura/escritura</td><td>Certificado de matrícula emitido</td></tr>
+      <tr><td><code>tickets</code> / <code>tipos_solicitud</code></td><td>Lectura/escritura</td><td>Trámites manuales (Anulación de Matrícula)</td></tr>
+      <tr><td><code>rol_tipos_solicitud</code></td><td>Lectura</td><td>A qué rol del panel corresponde cada tipo de trámite (resuelve el responsable)</td></tr>
+      <tr><td><code>eventos</code></td><td>Escritura</td><td>Auditoría de trámites creados y reseteos ejecutados</td></tr>
+      <tr><td><code>laboratorios</code> / <code>alertas</code> / <code>alerta_historial</code></td><td>Lectura/escritura</td><td>Catálogo e incidencia reportada por un docente</td></tr>
+      <tr><td><code>adjuntos</code></td><td>Lectura/escritura (opcional)</td><td>Metadatos de la foto adjunta a una incidencia (el binario va a disco, no a la BD)</td></tr>
+      <tr><td><code>usuarios_panel</code> / <code>roles</code></td><td>Solo lectura</td><td>Resolver a qué persona real corresponde un responsable</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <div class="callout info">
+    <span class="callout-title">Nombres reales confirmados en producción</span>
+    <p>El diseño original de esta app previó una tabla <code>asignaciones_responsables</code>
+      para resolver a quién notificar cada trámite nuevo. Al integrar con la base de datos real
+      del instituto (agosto 2026) se confirmó que esa resolución vive en
+      <code>rol_tipos_solicitud</code> — mismo propósito, distinto nombre. Los workflows se
+      ajustaron a la tabla real; el modelo lógico no cambió.</p>
+  </div>
+
+  <h3>Decisiones de modelado relevantes</h3>
+  <ul>
+    <li>El código único del certificado (<code>codigoUnico</code>) es un identificador propio de
+      <code>qr_codigos</code>, con restricción <code>UNIQUE</code> a nivel de base de datos — un
+      QR duplicado es estructuralmente imposible, sin importar qué cliente escriba.</li>
+    <li><strong>Idempotencia forzada en dos niveles</strong>: el workflow verifica antes de
+      insertar (para responder con datos existentes en vez de un error), y además
+      <code>certificados</code> tiene <code>UNIQUE(estudiante_id, periodo_lectivo_codigo)</code>
+      — cierra la condición de carrera si dos solicitudes llegan casi al mismo tiempo.</li>
+    <li><strong>Reemisión de certificado sin duplicar QR</strong>: si el estudiante vuelve a pedir
+      su certificado del mismo periodo, se actualiza fecha/hora sobre la misma fila (mismo
+      <code>qr_id</code> de siempre) — el QR impreso nunca cambia, pero la fecha mostrada, tanto
+      en el PDF como al escanearlo, siempre refleja la última emisión.</li>
+    <li><code>codigo</code> en <code>tickets</code> y <code>alertas</code> es <code>NOT NULL</code>
+      y <code>UNIQUE</code> en el esquema real: se inserta con un valor temporal aleatorio y se
+      reemplaza por el código correlativo definitivo (<code>TK-000029</code>,
+      <code>AL-000021</code>) inmediatamente después del insert, dentro del mismo workflow.</li>
+    <li>Estados de <code>tickets</code> y <code>alertas</code> en español
+      (<code>Pendiente</code> / <code>En Proceso</code> / <code>Resuelto</code>) — mismo
+      vocabulario que usa el panel administrativo del equipo web, sin traducción intermedia.</li>
+  </ul>
+</section>
+
+<!-- 05 CONTRATO -->
+<section class="page">
+  <div class="eyebrow"><span class="num">05</span> CONTRATO</div>
+  <h2>Especificación de la API</h2>
+  <p class="lead">11 workflows con Webhook, autenticados con cabecera <code>X-Api-Key</code>.
+    Formato de respuesta plano (sin envelope): éxito → 200 con el objeto/arreglo directo; error de
+    negocio → 4xx con <code>{ "error": "mensaje" }</code>.</p>
+
+  <div class="callout">
+    <span class="callout-title">Dos capas de autenticación</span>
+    <p>La <code>X-Api-Key</code> filtra tráfico que no pasa por la app, pero es la misma para
+      todos los usuarios. La protección real contra "conozco la cédula de alguien y quiero actuar
+      en su nombre" es la sesión OTP: los endpoints que modifican datos o exponen información
+      personal exigen, del lado del servidor, un <code>otp_codigos.usado = true</code> de los
+      últimos 20 minutos para esa cédula.</p>
+  </div>
+
+  <h3>5.1 — Identidad y verificación</h3>
+
+  <div class="endpoint">
+    <div class="endpoint-head">
+      <span class="method">POST</span><code class="path">/consultar-estudiante</code>
+      <span class="tag">reCAPTCHA v2</span>
+    </div>
+    <p>Busca la cédula en <code>estudiantes</code>; si no hay match, busca en <code>docentes</code>.
+      Responde siempre 200 — <code>null</code> si no existe, o el objeto con
+      <code>tipoUsuario: "ESTUDIANTE" | "DOCENTE"</code>. Único paso sin OTP previo, protegido en
+      su lugar con reCAPTCHA v2 contra enumeración de cédulas.</p>
+    <div class="code-pair">
+      <div><div class="label">Request</div><pre>{ "cedula": "0102030405" }</pre></div>
+      <div><div class="label">Response 200</div><pre>{ "tipoUsuario": "ESTUDIANTE",
+  "nombres": "…", "carrera": "…" }</pre></div>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/enviar-ticket-verificacion</code></div>
+    <p>Genera un código de 6 dígitos, lo guarda con expiración de 10 minutos y lo envía al correo
+      institucional del usuario identificado. Cooldown de 60s por cédula. Responde
+      <code>correoEnmascarado</code> (ej. <code>an**@yavirac.edu.ec</code>), nunca el código.</p>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/verificar-ticket</code></div>
+    <p>Compara el código recibido contra <code>otp_codigos</code>. La app solo muestra el menú
+      cuando responde <code>{ "valido": true }</code>. Límite de 5 intentos fallidos en 10
+      minutos por cédula — bloquea con 429 al superarlo.</p>
+  </div>
+
+  <h3>5.2 — Certificado de matrícula</h3>
+  <div class="endpoint">
+    <div class="endpoint-head">
+      <span class="method">POST</span><code class="path">/generar-certificado-matricula</code>
+      <span class="tag">Sesión OTP</span><span class="tag">Automático</span>
+    </div>
+    <p>Único trámite 100% automático del menú. Crea el código único y el registro del certificado;
+      si ya existía uno para ese estudiante y periodo, actualiza su fecha en vez de duplicar el
+      QR. Si el estudiante no tiene <code>periodo_ingreso_id</code> registrado en la base real
+      (caso frecuente en los datos institucionales importados), el certificado se emite igual,
+      omitiendo esa línea en vez de mostrar un dato inválido.</p>
+    <div class="status-list">
+      <div><span class="code s4">400</span> Cédula no matriculada en el periodo actual.</div>
+      <div><span class="code s4">403</span> Sin sesión OTP válida reciente.</div>
+    </div>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/enviar-certificado-pdf</code><span class="tag">Sesión OTP</span></div>
+    <p>La app genera el PDF real (membrete oficial + QR) en el navegador con
+      <code>certificado-pdf.service.ts</code>, lo convierte a base64 y lo envía aquí para que n8n
+      lo adjunte y lo mande por correo institucional.</p>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/verificar-certificado</code><span class="tag">Público — sin login</span></div>
+    <p>El QR impreso codifica una URL pública que cualquiera puede escanear para validar
+      autenticidad — funciona como firma digital de Secretaría. La cédula viaja siempre
+      enmascarada (<code>175****314</code>). Código inexistente → 404 con
+      <code>autentico: false</code>, nunca un 500.</p>
+  </div>
+
+  <h3>5.3 — Trámites de estudiante</h3>
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/crear-ticket-solicitud</code><span class="tag">Sesión OTP</span></div>
+    <p>Registra Anulación de Matrícula (o Consulta de estado) como ticket manual, resuelto por
+      personal administrativo desde el panel del equipo web. Asigna responsable automáticamente
+      vía <code>rol_tipos_solicitud</code> y le envía un aviso por correo. Idempotente: si ya
+      existe un ticket activo del mismo tipo, devuelve el existente en vez de duplicarlo.</p>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/consultar-tickets</code><span class="tag">Sesión OTP</span></div>
+    <p>Lista los tickets del estudiante identificado, en el mismo estado (<code>Pendiente</code> /
+      <code>En Proceso</code> / <code>Resuelto</code>) que ve el personal administrativo en su
+      panel — misma tabla, sin sincronización aparte.</p>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/resetear-contrasena-correo</code><span class="tag">Sesión OTP</span><span class="tag">Automático</span><span class="tag off">No expuesto en el menú actual</span></div>
+    <p>Genera una contraseña temporal y la aplica de inmediato. Implementado y probado a nivel de
+      workflow; se retiró del menú visible de la app — ver <a href="#seccion-07">sección 7</a>
+      para el detalle.</p>
+  </div>
+
+  <h3>5.4 — Rol docente</h3>
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/consultar-laboratorios</code></div>
+    <p>Catálogo de laboratorios, usado para poblar el paso de selección al reportar una incidencia.</p>
+  </div>
+
+  <div class="endpoint">
+    <div class="endpoint-head"><span class="method">POST</span><code class="path">/reportar-incidencia-laboratorio</code><span class="tag">Sesión OTP</span></div>
+    <p>El backend vuelve a validar del lado del servidor que la cédula sea de un docente real, y
+      además resuelve su cuenta en <code>usuarios_panel</code> por cédula — el reporte queda
+      registrado como si lo hubiera creado un usuario real del panel administrativo. Foto adjunta
+      opcional (JPEG/PNG, máx. 5MB), guardada en disco, nunca como binario en la base de datos.
+      Genera un código correlativo real (<code>AL-000021</code>) y notifica por correo al
+      Responsable de Laboratorios asignado.</p>
+  </div>
+</section>
+
+<!-- 06 SEGURIDAD -->
+<section class="page">
+  <div class="eyebrow"><span class="num">06</span> SEGURIDAD</div>
+  <h2>Medidas de seguridad implementadas</h2>
+  <p class="lead">Cada control responde a una amenaza concreta identificada durante el desarrollo,
+    no a una lista genérica de buenas prácticas.</p>
+  <ul>
+    <li><strong>Autenticación de webhook</strong> (<code>X-Api-Key</code>) — filtra tráfico que no
+      pasa por la app antes de ejecutar cualquier lógica.</li>
+    <li><strong>reCAPTCHA v2</strong> en <code>/consultar-estudiante</code>, el único paso sin OTP
+      previo — contra enumeración de cédulas.</li>
+    <li><strong>Sesión OTP verificada server-side</strong> (no solo en la app) en los endpoints
+      que actúan en nombre de un estudiante/docente específico — ventana de 20 minutos.</li>
+    <li><strong>Cooldown y límite de intentos</strong> al reenviar y verificar el código — contra
+      fuerza bruta y abuso de envío.</li>
+    <li><strong>Idempotencia forzada a nivel de base de datos</strong> (restricciones
+      <code>UNIQUE</code>) además del chequeo del workflow — cierra condiciones de carrera entre
+      esta app y el sistema web.</li>
+    <li><strong>Enmascarado de datos sensibles</strong> — correo y cédula en las respuestas donde
+      no hace falta el dato completo.</li>
+    <li><strong>Contraseña nueva solo por correo</strong> — nunca en la respuesta HTTP ni en el
+      log de auditoría del reseteo.</li>
+    <li><strong>Validación server-side redundante</strong> — ej.
+      <code>reportar-incidencia-laboratorio</code> reconfirma que la cédula sea de un docente
+      real, sin confiar en la app.</li>
+    <li><strong>Auditoría de eventos</strong> (tabla <code>eventos</code>) para trámites creados,
+      asignados y reseteos ejecutados.</li>
+  </ul>
+
+  <div class="callout warn">
+    <span class="callout-title">Nota de operación — API key compartida en el repositorio</span>
+    <p>La <code>X-Api-Key</code> del servidor institucional está versionada en
+      <code>environment.ts</code>/<code>environment.prod.ts</code> a propósito, para que el
+      equipo que continúa el desarrollo (ver <a href="#seccion-11">sección 11</a>) pueda clonar el
+      repositorio y ejecutar la app sin pasos adicionales. No sustituye a la sesión OTP como
+      control de acceso a datos personales — ver "Dos capas de autenticación" en la sección
+      anterior.</p>
+  </div>
+</section>
+
+<!-- 07 PROCESOS -->
+<section class="page" id="seccion-07">
+  <div class="eyebrow"><span class="num">07</span> PROCESOS</div>
+  <h2>Trámites del sistema</h2>
+
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Trámite</th><th>Rol</th><th>Ejecución</th><th>Genera</th><th>En el menú</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Certificado de Matrícula</td><td>Estudiante</td>
+        <td><span class="badge ok">Automático</span></td><td>QR + correo, PDF adjunto</td>
+        <td><span class="badge ok">Sí</span></td>
+      </tr>
+      <tr>
+        <td>Anulación de Matrícula</td><td>Estudiante</td>
+        <td><span class="badge warn">Manual (ticket)</span></td><td>—</td>
+        <td><span class="badge ok">Sí</span></td>
+      </tr>
+      <tr>
+        <td>Consultar estado de tickets</td><td>Estudiante</td>
+        <td><span class="badge ok">Automático</span></td><td>—</td>
+        <td><span class="badge ok">Sí</span></td>
+      </tr>
+      <tr>
+        <td>Reseteo de contraseña institucional</td><td>Estudiante</td>
+        <td><span class="badge ok">Automático</span></td><td>—</td>
+        <td><span class="badge off">No</span></td>
+      </tr>
+      <tr>
+        <td>Reportar incidencia de laboratorio</td><td>Docente</td>
+        <td><span class="badge warn">Manual (revisión)</span></td><td>Foto opcional adjunta</td>
+        <td><span class="badge ok">Sí</span></td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Reseteo de contraseña: implementado, pero fuera del menú</h3>
+  <p>El trámite se construyó como requerimiento inicial de la coordinación académica: el
+    estudiante, ya autenticado por cédula + OTP, resetea su contraseña al instante, sin
+    intervención humana, reutilizando la prueba de <code>otp_codigos.usado</code> en vez de crear
+    un mecanismo de sesión nuevo. El workflow (<code>/resetear-contrasena-correo</code>) sigue
+    activo y probado en el servidor. La opción se retiró del menú de la app en la fase de cierre
+    del proyecto; el código de la app y del workflow permanece en el repositorio para
+    reactivarla con un solo cambio si se decide reincorporarla.</p>
+
+  <h3>Consultar estado de tickets: reincorporado</h3>
+  <p>Esta opción existió, se retiró temporalmente durante el desarrollo, y se reincorporó al
+    integrar con el servidor compartido — el estudiante puede ver en la app el mismo estado
+    (<code>Pendiente</code> / <code>En Proceso</code> / <code>Resuelto</code>) que el personal
+    administrativo actualiza desde su panel, sobre la misma tabla <code>tickets</code>.</p>
+</section>
+
+<!-- 08 IDENTIDAD -->
+<section class="page">
+  <div class="eyebrow"><span class="num">08</span> IDENTIDAD</div>
+  <h2>Identidad dual: estudiante / docente</h2>
+  <p class="lead">Segunda identidad de usuario agregada sin tocar el flujo de identificación
+    existente ni crear una pantalla de login separada.</p>
+  <ol class="steps">
+    <li><code>POST /consultar-estudiante</code> busca primero en <code>estudiantes</code>; si no
+      hay match, busca en <code>docentes</code>. La respuesta incluye el discriminador
+      <code>tipoUsuario</code>.</li>
+    <li><code>POST /enviar-ticket-verificacion</code> hace la misma búsqueda dual para saber a qué
+      correo enviar el OTP.</li>
+    <li><code>POST /verificar-ticket</code> no distingue rol — valida el OTP contra
+      <code>otp_codigos</code> por cédula únicamente.</li>
+    <li>La app guarda el <code>Usuario</code> identificado (unión discriminada
+      <code>Estudiante | Docente</code>) y elige el menú según <code>tipoUsuario</code>: el
+      estudiante ve sus trámites; el docente ve únicamente <strong>Reportar incidencia en
+      laboratorio</strong>.</li>
+  </ol>
+  <div class="callout">
+    <span class="callout-title">Foto de incidencia</span>
+    <p>Se envía como base64 desde <code>&lt;input type="file" capture="environment"&gt;</code>
+      (sin plugin nativo de cámara), el workflow la escribe en disco dentro del volumen de
+      almacenamiento compartido y solo entonces registra la fila en <code>adjuntos</code>.
+      Adjuntar foto es siempre opcional; si falla el guardado en disco, el reporte se guarda
+      igual, sin foto.</p>
+  </div>
+</section>
+
+<!-- 09 CÓDIGO -->
+<section class="page">
+  <div class="eyebrow"><span class="num">09</span> CÓDIGO</div>
+  <h2>Estructura del proyecto</h2>
+
+  <h3>Frontend — <code>certi-matricula-app/</code></h3>
+  <div class="tree">src/app/
+  <span class="hl">chat/</span>                    <span class="dim">// componente conversacional — orquesta todos los trámites</span>
+  <span class="hl">verificar-certificado/</span>    <span class="dim">// página pública de verificación por QR</span>
+  services/               <span class="dim">// estudiante.service.ts, certificado-pdf.service.ts</span>
+  interceptors/           <span class="dim">// ApiKeyInterceptor — agrega X-Api-Key a cada request</span>
+  models/                 <span class="dim">// estudiante.model.ts — tipos e interfaces del dominio</span>
+  utils/                  <span class="dim">// validación de cédula ecuatoriana, etc.</span>
+src/environments/         <span class="dim">// environment.ts / environment.prod.ts</span>
+android/                  <span class="dim">// proyecto nativo Capacitor — ver sección 11</span></div>
+
+  <h3>Backend — <code>n8n-backend/</code></h3>
+  <div class="tree">workflows/                 <span class="dim">// 11 workflows .json, uno por endpoint, importables en n8n</span>
+docker-compose.yml         <span class="dim">// contenedores n8n + PostgreSQL (desarrollo local)</span>
+init.sql                   <span class="dim">// esquema + datos de prueba para desarrollo local</span>
+ARQUITECTURA.md · CONTRATO-API.md · ESQUEMA-BD.md</div>
+</section>
+
+<!-- 10 ENTORNO LOCAL -->
+<section class="page">
+  <div class="eyebrow"><span class="num">10</span> ENTORNO LOCAL</div>
+  <h2>Instalación y ejecución local</h2>
+  <p class="lead">Para desarrollar o probar cambios sin afectar el servidor compartido en
+    producción — ver <a href="#seccion-11">sección 11</a> para correr contra el servidor real.</p>
+
+  <h3>Backend (n8n + PostgreSQL)</h3>
+  <ol class="steps">
+    <li>Levantar los contenedores: <code>docker compose up -d</code> desde <code>n8n-backend/</code>.</li>
+    <li>Abrir n8n (<code>http://localhost:5678</code>) e importar los 11 workflows.</li>
+    <li>En cada nodo Postgres, configurar la credencial real de base de datos.</li>
+    <li>En cada nodo Webhook, configurar la credencial Header Auth (<code>X-Api-Key</code>).</li>
+    <li>En los nodos de envío de correo, configurar la credencial SMTP.</li>
+    <li>Poner la Secret Key de reCAPTCHA v2 en el nodo "Verificar CAPTCHA (Google)".</li>
+    <li>Activar los 11 workflows.</li>
+  </ol>
+
+  <h3>Frontend (Ionic/Angular)</h3>
+  <ol class="steps">
+    <li><code>npm install</code> dentro de <code>certi-matricula-app/</code>.</li>
+    <li>Confirmar en <code>environment.ts</code>: <code>usarMock: false</code> y
+      <code>n8nBaseUrl: 'http://localhost:5678/webhook'</code>.</li>
+    <li><code>npx ng serve</code> — la app queda disponible en <code>http://localhost:4200</code>.</li>
+  </ol>
+
+  <div class="callout">
+    <p><strong>Nota</strong> — la app también puede correr con <code>environment.usarMock =
+      true</code>, sin backend real, contra datos simulados que respetan el mismo contrato — útil
+      para desarrollar la interfaz sin depender de n8n.</p>
+  </div>
+</section>
+
+<!-- 11 DESPLIEGUE EN PRODUCCIÓN (NUEVA) -->
+<section class="page" id="seccion-11">
+  <div class="eyebrow"><span class="num">11</span> DESPLIEGUE</div>
+  <h2>Despliegue en producción</h2>
+  <p class="lead">En agosto de 2026, esta app dejó de ser un proyecto local y pasó a operar sobre
+    la infraestructura real del instituto, compartida con la aplicación web construida por otro
+    equipo del mismo proyecto de titulación.</p>
+
+  <h3>Arquitectura del servidor compartido</h3>
+  <p>Un único VPS institucional aloja, en contenedores Docker separados, el n8n compartido, la
+    base de datos PostgreSQL real (estudiantes, docentes, tickets, certificados y alertas del
+    instituto) y nginx como punto de entrada. nginx enruta por prefijo:</p>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Ruta</th><th>Sirve</th></tr></thead>
+    <tbody>
+      <tr><td><code>/</code></td><td>Panel administrativo del equipo web</td></tr>
+      <tr><td><code>/app/</code></td><td>Esta aplicación (build de producción de Ionic/Angular)</td></tr>
+      <tr><td><code>/webhook/</code></td><td>n8n — todos los workflows, de ambos equipos</td></tr>
+    </tbody>
+  </table>
+  </div>
+  <p>Los 11 workflows de esta app conviven en la misma instancia de n8n que los del equipo web
+    (identidad, panel, alertas), identificables por el prefijo <code>App Matrícula -</code> en su
+    nombre. Usan rutas de webhook sin prefijo (<code>generar-certificado-matricula</code>,
+    <code>crear-ticket-solicitud</code>, etc.), que no colisionan con las del equipo web
+    (<code>chatbot/</code>, <code>panel/</code>, <code>admin/</code>).</p>
+
+  <h3>Adaptaciones al esquema real</h3>
+  <p>Integrar contra la base de datos real (1401 estudiantes, 107 docentes) expuso diferencias
+    puntuales frente al esquema de desarrollo local, todas corregidas a nivel de workflow sin
+    tocar el contrato de la app:</p>
+  <ul>
+    <li><code>asignaciones_responsables</code> no existe en producción; la resolución de
+      responsable vive en <code>rol_tipos_solicitud</code>.</li>
+    <li><code>tickets.codigo</code> y <code>alertas.codigo</code> son <code>NOT NULL</code> y
+      <code>UNIQUE</code> en producción — se corrigió el insert para generar un valor temporal
+      aleatorio (no un literal fijo, que habría chocado con la restricción única desde el segundo
+      registro) antes de asignar el código correlativo definitivo.</li>
+    <li><code>alertas.profesor_id</code> referencia <code>usuarios_panel.id</code>, no
+      <code>docentes.id</code> — el workflow de incidencias resuelve ambas tablas por cédula antes
+      de insertar.</li>
+    <li>El certificado de matrícula omite la línea de "periodo de ingreso" cuando el dato no está
+      registrado para ese estudiante en la base real, en vez de mostrar texto inválido.</li>
+  </ul>
+
+  <h3>Empaquetado como APK (Android)</h3>
+  <p>La app se compila como APK nativo con Capacitor, usando Android Studio + su JDK embebido y el
+    SDK de Android (API 36). Dos ajustes de configuración fueron necesarios específicamente para
+    que la app nativa pudiera hablarle al backend, que corre sobre HTTP plano (el VPS aún no tiene
+    un dominio propio ni certificado TLS):</p>
+  <div class="callout warn">
+    <span class="callout-title">Bloqueo de contenido mixto en el WebView</span>
+    <p>Por defecto, Capacitor sirve la app bajo el origen interno <code>https://localhost</code>.
+      Cualquier llamada desde ahí a un endpoint <code>http://</code> se bloquea como "contenido
+      mixto" por el motor del WebView — no por Android como sistema operativo, así que ajustar
+      solo <code>usesCleartextTraffic</code>/<code>networkSecurityConfig</code> no alcanza.
+      Solución aplicada en <code>capacitor.config.ts</code>: <code>server.androidScheme =
+      'http'</code>, sin cambiar el <code>hostname</code>. Bajar el esquema local a
+      <code>http</code> iguala el protocolo con el del backend sin generar colisión de rutas
+      (ver nota siguiente).</p>
+  </div>
+  <div class="callout warn">
+    <span class="callout-title">Por qué no usar el mismo hostname que la API</span>
+    <p>Un primer intento configuró <code>server.hostname</code> igual a la IP del backend, para
+      que la app "compartiera origen" con la API. Efecto real: Capacitor empezó a interceptar toda
+      llamada a esa IP y a responder con los archivos locales de la propia app (devolvía su
+      <code>index.html</code> donde se esperaba JSON). Diagnosticado con un mensaje de depuración
+      temporal en el manejador de errores del chat, que expuso el cuerpo de la respuesta real.
+      Revertido: el <code>hostname</code> se deja en su valor por defecto.</p>
+  </div>
+
+  <h3>Respaldo y continuidad</h3>
+  <p>Antes de compartir acceso al servidor con equipos adicionales, se generó un respaldo completo
+    y verificado: volcado SQL de la base de datos completa, copia del volumen de datos de n8n
+    (workflows y credenciales), y copia de los directorios web de ambas aplicaciones —
+    almacenado tanto en el propio VPS como fuera de él, como punto de restauración si un cambio
+    posterior de otro equipo afecta el sistema.</p>
+</section>
+
+<!-- 12 TRAZABILIDAD (antes 11) -->
+<section class="page">
+  <div class="eyebrow"><span class="num">12</span> TRAZABILIDAD</div>
+  <h2>Trazabilidad de requerimientos</h2>
+  <p class="lead">Mapeo entre los requerimientos funcionales (RF), no funcionales (RNF) y casos de
+    uso (CU) del proyecto de titulación, y lo que efectivamente implementa esta aplicación móvil.</p>
+
+  <h3>Requerimientos funcionales</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Código</th><th>Requerimiento</th><th>Estado en esta app</th></tr></thead>
+    <tbody>
+      <tr><td><code>RF-01</code></td><td>Iniciar sesión</td><td><span class="badge ok">Implementado</span> — cédula + código OTP por correo institucional</td></tr>
+      <tr><td><code>RF-02</code></td><td>Recuperar contraseña</td><td><span class="badge warn">Implementado, no expuesto</span> — workflow activo, retirado del menú (ver sección 7)</td></tr>
+      <tr><td><code>RF-09</code></td><td>Solicitar certificado de matrícula</td><td><span class="badge ok">Implementado</span> — con QR, probado contra datos reales</td></tr>
+      <tr><td><code>RF-12</code></td><td>Registrar incidencias de laboratorio</td><td><span class="badge ok">Implementado</span> — rol Docente, probado de punta a punta en producción</td></tr>
+      <tr><td><code>RF-13</code></td><td>Generar ticket automáticamente</td><td><span class="badge ok">Implementado</span> — código correlativo generado por Postgres tras el insert</td></tr>
+      <tr><td><code>RF-17</code></td><td>Notificaciones automáticas</td><td><span class="badge ok">Implementado</span> — correo de confirmación y aviso al responsable asignado</td></tr>
+      <tr><td><code>RF-18</code></td><td>Generar certificados en PDF</td><td><span class="badge ok">Implementado</span> — generado en el cliente (jsPDF) con membrete oficial y QR</td></tr>
+      <tr><td><code>RF-21</code></td><td>Automatizar procesos con n8n</td><td><span class="badge ok">Implementado</span> — n8n es la API completa de esta app</td></tr>
+    </tbody>
+  </table>
+  </div>
+
+  <h3>Casos de uso (selección)</h3>
+  <div class="table-wrap">
+  <table>
+    <thead><tr><th>Código</th><th>Caso de uso</th><th>Estado en esta app</th></tr></thead>
+    <tbody>
+      <tr><td><code>CU-01</code></td><td>Iniciar sesión</td><td><span class="badge ok">Implementado</span> — identidad por cédula + OTP</td></tr>
+      <tr><td><code>CU-02</code></td><td>Registrar ticket</td><td><span class="badge ok">Implementado</span> — Anulación de Matrícula, Incidencia de Laboratorio</td></tr>
+      <tr><td><code>CU-04</code></td><td>Recibir notificaciones</td><td><span class="badge ok">Implementado</span> — por correo institucional en cada trámite</td></tr>
+    </tbody>
+  </table>
+  </div>
+</section>
+
+<!-- 13 REFERENCIA (antes 12) -->
+<section class="page">
+  <div class="eyebrow"><span class="num">13</span> REFERENCIA</div>
+  <h2>Anexos</h2>
+
+  <h3>Glosario</h3>
+  <dl class="glossary">
+    <dt>OTP</dt><dd>One-Time Password — código de un solo uso enviado por correo para verificar identidad.</dd>
+    <dt>Webhook</dt><dd>Nodo de n8n que expone un workflow como endpoint HTTP.</dd>
+    <dt>Idempotencia</dt><dd>Propiedad por la cual repetir la misma operación no produce resultados duplicados.</dd>
+    <dt>Trámite automático</dt><dd>Se ejecuta y resuelve sin intervención humana (Certificado, Reseteo de contraseña).</dd>
+    <dt>Trámite manual</dt><dd>Queda registrado como ticket para revisión de personal administrativo (Anulación, Incidencia).</dd>
+    <dt>VPS</dt><dd>Servidor virtual privado — la máquina institucional donde corren n8n, PostgreSQL y ambas apps web en producción.</dd>
+  </dl>
+
+  <h3>Documentación técnica de referencia</h3>
+  <p>Este manual consolida la documentación detallada que vive en <code>n8n-backend/</code>:
+    <code>ARQUITECTURA.md</code>, <code>CONTRATO-API.md</code>, <code>ESQUEMA-BD.md</code> y
+    <code>ARRANQUE-LOCAL.md</code>.</p>
+
+  <footer class="page-footer">
+    <span>YaviBot — Manual Técnico v1.1</span>
+    <span>Instituto Superior Tecnológico "Yavirac" · Agosto 2026</span>
+  </footer>
+</section>
+
+</body>
+</html>

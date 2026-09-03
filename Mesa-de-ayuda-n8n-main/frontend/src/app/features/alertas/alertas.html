@@ -1,0 +1,153 @@
+<app-panel-shell
+  active="alertas"
+  icono="🔔"
+  titulo="Módulo de Alertas"
+  [subtitulo]="gestiona() ? 'Gestión de incidencias de laboratorio' : 'Reporte de incidencias de laboratorio'"
+  [avisos]="pendientes()">
+
+  <section class="pcard">
+    <div class="pcard__head">
+      <div>
+        <h2 class="pcard__title">{{ gestiona() ? 'Todas las alertas' : 'Mis alertas' }}</h2>
+        <p class="pcard__hint">
+          {{ gestiona() ? 'Incidencias reportadas por el personal.' : 'Listado de las incidencias que ha reportado.' }}
+        </p>
+      </div>
+      <span class="ptop__spacer"></span>
+      @if (!cargando() && puedeReportar()) {
+        <button class="pbtn pbtn--navy" (click)="abrirForm()">＋ Reportar Incidencia</button>
+      }
+    </div>
+
+    @if (mensaje()) { <p class="pok">✔ {{ mensaje() }}</p> }
+
+    <div class="ptools">
+      <label class="psearch">
+        <span class="psearch__icon">🔎</span>
+        <input type="text" placeholder="Buscar por incidencia, laboratorio o profesor…"
+               [ngModel]="buscar()" (ngModelChange)="buscar.set($event)" />
+      </label>
+
+      <select class="pselect" [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event)">
+        <option value="Todos">Filtrar por estado</option>
+        <option value="Pendiente">Pendiente</option>
+        <option value="En revisión">En revisión</option>
+        <option value="Resuelta">Resuelta</option>
+      </select>
+
+      <select class="pselect pselect--corto" [ngModel]="porPagina()" (ngModelChange)="porPagina.set(+$event)">
+        <option [ngValue]="10">10 por página</option>
+        <option [ngValue]="20">20 por página</option>
+        <option [ngValue]="50">50 por página</option>
+      </select>
+    </div>
+
+    <div class="ptable-wrap">
+      <table class="ptable">
+        <thead>
+          <tr>
+            <th># Alerta</th><th>Laboratorio</th><th>Incidencia</th>
+            @if (gestiona()) { <th>Profesor</th> }
+            <th>Fecha</th><th>Estado</th><th>Foto</th>
+            @if (gestiona()) { <th>Gestionar</th> }
+          </tr>
+        </thead>
+        <tbody>
+          @if (cargando()) {
+            <tr><td [attr.colspan]="gestiona() ? 8 : 6" class="ptable__empty">Cargando…</td></tr>
+          } @else if (visibles().length === 0) {
+            <tr><td [attr.colspan]="gestiona() ? 8 : 6" class="ptable__empty">No hay alertas que coincidan con la búsqueda.</td></tr>
+          } @else {
+            @for (a of visibles(); track a.id) {
+              <tr>
+                <td class="ptable__code">{{ a.codigo }}</td>
+                <td>{{ a.laboratorio }}</td>
+                <td><span class="ptable__clamp">{{ a.descripcion }}</span></td>
+                @if (gestiona()) { <td>{{ a.profesor }}</td> }
+                <td>{{ a.fecha }}</td>
+                <td><span class="pill" [class]="estadoClase(a.estado)">{{ a.estado }}</span></td>
+                <td>
+                  @if (a.adjunto_id != null) { <button class="plink" (click)="verFoto(a)">Ver foto</button> }
+                  @else { <span class="pmuted">—</span> }
+                </td>
+                @if (gestiona()) {
+                  <td>
+                    <select class="pselect pselect--mini" [ngModel]="a.estado" (ngModelChange)="cambiarEstado(a, $event)">
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="En revisión">En revisión</option>
+                      <option value="Resuelta">Resuelta</option>
+                    </select>
+                  </td>
+                }
+              </tr>
+            }
+          }
+        </tbody>
+      </table>
+    </div>
+
+    @if (!cargando()) {
+      <app-paginator [total]="filtradas().length" [porPagina]="porPagina()" [(pagina)]="pagina" />
+    }
+  </section>
+
+  <!-- Formulario de reporte: se abre desde el botón -->
+  @if (mostrarForm()) {
+    <div class="modal" (click)="cerrarForm()">
+      <div class="modal__caja" (click)="$event.stopPropagation()">
+        <div class="modal__cab">
+          <div>
+            <h2 class="pcard__title">🚨 Reportar incidencia</h2>
+            <p class="pcard__hint">Completa la información para registrar una nueva incidencia.</p>
+          </div>
+          <button class="modal__cerrar" (click)="cerrarForm()" aria-label="Cerrar">✕</button>
+        </div>
+
+        <label class="pfield">
+          <span class="pfield__label">Laboratorio <span class="pfield__req">*</span></span>
+          <select class="pselect pselect--full" [ngModel]="labId()" (ngModelChange)="labId.set($event)">
+            <option [ngValue]="null" disabled>Seleccione un laboratorio…</option>
+            @for (l of laboratorios(); track l.id) { <option [ngValue]="l.id">{{ l.nombre }}</option> }
+          </select>
+        </label>
+
+        <label class="pfield">
+          <span class="pfield__label">Descripción de la incidencia <span class="pfield__req">*</span></span>
+          <textarea rows="4" maxlength="500"
+                    placeholder="Describe la incidencia (equipo afectado, qué ocurre, ubicación dentro del laboratorio…)"
+                    [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)"></textarea>
+          <span class="pfield__counter">{{ descripcion().length }}/500</span>
+        </label>
+
+        <div class="pfield">
+          <span class="pfield__label">Fotografía (JPG o PNG, máx. 5 MB) <span class="pfield__req">*</span></span>
+          <label class="pdrop">
+            <input type="file" accept="image/png,image/jpeg" (change)="onFoto($event)" />
+            <span class="pdrop__icon">☁️</span>
+            <span>
+              <span class="pdrop__main">Seleccionar archivo</span><br />
+              <span class="pdrop__hint">o arrastra y suelta aquí</span>
+            </span>
+            <span class="pdrop__file">{{ fotoNombre() || 'Ningún archivo seleccionado' }}</span>
+          </label>
+        </div>
+
+        @if (error()) { <p class="perr">⚠ {{ error() }}</p> }
+
+        <div class="modal__acciones">
+          <button class="pbtn pbtn--ghost" (click)="cerrarForm()">Cancelar</button>
+          <button class="pbtn pbtn--orange" (click)="reportar()" [disabled]="enviando()">
+            {{ enviando() ? 'Enviando…' : '➤ Reportar Incidencia' }}
+          </button>
+        </div>
+      </div>
+    </div>
+  }
+
+  <!-- Vista de la fotografía -->
+  @if (fotoModal(); as src) {
+    <div class="modal" (click)="cerrarFoto()">
+      <img class="modal__foto" [src]="src" alt="Foto de la incidencia" (click)="$event.stopPropagation()" />
+    </div>
+  }
+</app-panel-shell>

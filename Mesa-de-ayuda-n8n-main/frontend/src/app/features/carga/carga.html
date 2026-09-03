@@ -1,0 +1,104 @@
+<app-panel-shell
+  active="carga"
+  icono="📤"
+  titulo="Carga de Matriculados"
+  subtitulo="Importación masiva de estudiantes y docentes (CSV o Excel)">
+
+  <div class="grid">
+    <!-- ESTUDIANTES -->
+    <section class="pcard">
+      <h2 class="pcard__title">🎓 Estudiantes</h2>
+      <p class="pcard__hint">
+        Columnas: cedula, nombres, carrera_id, nivel, paralelo, modalidad, estado_matricula, correo.
+        Se insertan los nuevos y se actualizan los que cambiaron (por cédula).
+      </p>
+
+      <label class="pdrop">
+        <input type="file" accept=".csv,.xlsx,.xls" (change)="seleccionar('estudiantes', $event)" />
+        <span class="pdrop__icon">☁️</span>
+        <span>
+          <span class="pdrop__main">Seleccionar archivo</span><br />
+          <span class="pdrop__hint">CSV, XLSX o XLS</span>
+        </span>
+        <span class="pdrop__file">{{ estudiantes().archivo || 'Ningún archivo seleccionado' }}</span>
+      </label>
+
+      @if (estudiantes().registros.length) {
+        <p class="pok">✔ {{ estudiantes().registros.length }} registros leídos, listos para cargar.</p>
+      }
+      @if (estudiantes().error) { <p class="perr">⚠ {{ estudiantes().error }}</p> }
+
+      <button class="pbtn pbtn--orange carga__btn" (click)="procesar('estudiantes')"
+              [disabled]="!estudiantes().registros.length || estudiantes().cargando">
+        {{ estudiantes().cargando ? 'Procesando…' : 'Procesar carga' }}
+      </button>
+
+      @if (estudiantes().resumen; as r) {
+        <div class="resumen">
+          <div class="rstat rstat--ins"><b>{{ r.insertados }}</b><span>Insertados</span></div>
+          <div class="rstat rstat--upd"><b>{{ r.actualizados }}</b><span>Actualizados</span></div>
+          <div class="rstat rstat--omt"><b>{{ r.omitidos }}</b><span>Sin cambios</span></div>
+          <div class="rstat rstat--err"><b>{{ r.errores }}</b><span>Errores</span></div>
+        </div>
+        @if (r.detalleErrores.length) {
+          <details class="errores">
+            <summary>Ver {{ r.errores }} errores</summary>
+            <ul>
+              @for (e of r.detalleErrores; track $index) {
+                <li>Fila {{ e.fila }}: {{ e.motivo }} <em>({{ e.valor }})</em></li>
+              }
+            </ul>
+          </details>
+        }
+      }
+    </section>
+
+    <!-- DOCENTES -->
+    <section class="pcard">
+      <h2 class="pcard__title">🧑‍🏫 Docentes</h2>
+      <p class="pcard__hint">
+        Columnas: cedula, nombre_docente (o nombre_docentes), correo.
+        Misma lógica: inserta nuevos y actualiza los que cambiaron.
+      </p>
+
+      <label class="pdrop">
+        <input type="file" accept=".csv,.xlsx,.xls" (change)="seleccionar('docentes', $event)" />
+        <span class="pdrop__icon">☁️</span>
+        <span>
+          <span class="pdrop__main">Seleccionar archivo</span><br />
+          <span class="pdrop__hint">CSV, XLSX o XLS</span>
+        </span>
+        <span class="pdrop__file">{{ docentes().archivo || 'Ningún archivo seleccionado' }}</span>
+      </label>
+
+      @if (docentes().registros.length) {
+        <p class="pok">✔ {{ docentes().registros.length }} registros leídos, listos para cargar.</p>
+      }
+      @if (docentes().error) { <p class="perr">⚠ {{ docentes().error }}</p> }
+
+      <button class="pbtn pbtn--orange carga__btn" (click)="procesar('docentes')"
+              [disabled]="!docentes().registros.length || docentes().cargando">
+        {{ docentes().cargando ? 'Procesando…' : 'Procesar carga' }}
+      </button>
+
+      @if (docentes().resumen; as r) {
+        <div class="resumen">
+          <div class="rstat rstat--ins"><b>{{ r.insertados }}</b><span>Insertados</span></div>
+          <div class="rstat rstat--upd"><b>{{ r.actualizados }}</b><span>Actualizados</span></div>
+          <div class="rstat rstat--omt"><b>{{ r.omitidos }}</b><span>Sin cambios</span></div>
+          <div class="rstat rstat--err"><b>{{ r.errores }}</b><span>Errores</span></div>
+        </div>
+        @if (r.detalleErrores.length) {
+          <details class="errores">
+            <summary>Ver {{ r.errores }} errores</summary>
+            <ul>
+              @for (e of r.detalleErrores; track $index) {
+                <li>Fila {{ e.fila }}: {{ e.motivo }} <em>({{ e.valor }})</em></li>
+              }
+            </ul>
+          </details>
+        }
+      }
+    </section>
+  </div>
+</app-panel-shell>

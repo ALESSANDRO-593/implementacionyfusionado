@@ -1,0 +1,29 @@
+<div class="pshell">
+  <app-panel-sidebar [active]="active()" />
+
+  <main class="pmain">
+    <header class="ptop">
+      <span class="ptop__icon">{{ icono() }}</span>
+      <div class="ptop__head">
+        <h1 class="ptop__title">{{ titulo() }}</h1>
+        @if (subtitulo()) { <p class="ptop__subtitle">{{ subtitulo() }}</p> }
+      </div>
+
+      <span class="ptop__spacer"></span>
+
+      <div class="ptop__user">
+        <span class="ptop__bell">
+          🔔
+          @if (avisos() > 0) { <span class="ptop__badge">{{ avisos() }}</span> }
+        </span>
+        <span class="ptop__avatar">{{ iniciales() }}</span>
+        <span class="ptop__who">
+          <span class="ptop__name">{{ nombres() }}</span>
+          <span class="ptop__rol">{{ rolNombre() }}</span>
+        </span>
+      </div>
+    </header>
+
+    <ng-content />
+  </main>
+</div>

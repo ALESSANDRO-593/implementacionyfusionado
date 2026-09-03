@@ -1,0 +1,170 @@
+{
+  "id": "parkPanelLoginV1",
+  "name": "Panel - Login local (Parqueadero)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "panel/parqueadero/login",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0101",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-720, 0],
+      "webhookId": "panel-parqueadero-login"
+    },
+    {
+      "parameters": {
+        "jsCode": "const body = $json.body ?? {};\nconst identification = String(body.cedula ?? body.identification ?? '').trim();\nconst password = String(body.password ?? '');\nconst valid = /^\\d{10}$/.test(identification) && password.length >= 6 && password.length <= 200;\nreturn [{ json: { valid, identification, password } }];"
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0102",
+      "name": "Validar solicitud",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-500, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "valid-request-condition",
+              "leftValue": "={{ $json.valid }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0103",
+      "name": "¿Solicitud válida?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-280, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  up.id::int AS uid,\n  up.cedula,\n  up.nombres,\n  up.correo,\n  r.codigo AS rol,\n  COALESCE(\n    json_agg(DISTINCT p.codigo) FILTER (WHERE p.codigo IS NOT NULL),\n    '[]'::json\n  ) AS permisos\nFROM public.usuarios_panel up\nJOIN public.roles r ON r.id = up.rol_id\nLEFT JOIN public.roles_permisos rp ON rp.rol_id = r.id\nLEFT JOIN public.permisos p ON p.id = rp.permiso_id\nWHERE up.cedula = $1\n  AND up.activo = TRUE\n  AND r.codigo = 'ADMINISTRADOR_PARKING'\n  AND up.password_hash = public.crypt($2, up.password_hash)\nGROUP BY up.id, up.cedula, up.nombres, up.correo, r.codigo\nLIMIT 1;",
+        "options": {
+          "queryReplacement": "={{ [$json.identification, $json.password] }}"
+        }
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0104",
+      "name": "Autenticar usuario (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [-20, -100],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "s0Gn0DbaHQtIzuTr",
+          "name": "YaviBot Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "authenticated-condition",
+              "leftValue": "={{ $json.uid != null }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0105",
+      "name": "¿Credenciales correctas?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [220, -100]
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\nconst secret = $env.JWT_SECRET;\nif (!secret) throw new Error('JWT_SECRET no está configurado en n8n.');\n\nconst user = $json;\nconst now = Math.floor(Date.now() / 1000);\nconst header = { alg: 'HS256', typ: 'JWT' };\nconst payload = {\n  sub: String(user.uid),\n  uid: Number(user.uid),\n  cedula: user.cedula,\n  nombres: user.nombres,\n  correo: user.correo,\n  rol: user.rol,\n  permisos: Array.isArray(user.permisos) ? user.permisos : [],\n  iat: now,\n  exp: now + 3600,\n  jti: crypto.randomUUID()\n};\nconst encode = value => Buffer.from(JSON.stringify(value)).toString('base64url');\nconst unsignedToken = `${encode(header)}.${encode(payload)}`;\nconst signature = crypto.createHmac('sha256', secret).update(unsignedToken).digest('base64url');\n\nreturn [{\n  json: {\n    token: `${unsignedToken}.${signature}`,\n    expiresIn: 3600,\n    user: {\n      id: payload.uid,\n      identification: payload.cedula,\n      fullName: payload.nombres,\n      email: payload.correo,\n      role: payload.rol,\n      permissions: payload.permisos\n    }\n  }\n}];"
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0106",
+      "name": "Generar JWT",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, -180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0107",
+      "name": "Responder sesión",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [700, -180]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { error: 'Cédula o contraseña incorrectas.' } }}",
+        "options": { "responseCode": 401 }
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0108",
+      "name": "Responder credenciales incorrectas",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [460, 20]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { error: 'Ingrese una cédula válida y una contraseña de al menos 6 caracteres.' } }}",
+        "options": { "responseCode": 400 }
+      },
+      "id": "8e3bd40c-522e-4a57-b8b2-ea67a12a0109",
+      "name": "Responder solicitud inválida",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [-20, 140]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validar solicitud", "type": "main", "index": 0 }]]
+    },
+    "Validar solicitud": {
+      "main": [[{ "node": "¿Solicitud válida?", "type": "main", "index": 0 }]]
+    },
+    "¿Solicitud válida?": {
+      "main": [
+        [{ "node": "Autenticar usuario (Postgres)", "type": "main", "index": 0 }],
+        [{ "node": "Responder solicitud inválida", "type": "main", "index": 0 }]
+      ]
+    },
+    "Autenticar usuario (Postgres)": {
+      "main": [[{ "node": "¿Credenciales correctas?", "type": "main", "index": 0 }]]
+    },
+    "¿Credenciales correctas?": {
+      "main": [
+        [{ "node": "Generar JWT", "type": "main", "index": 0 }],
+        [{ "node": "Responder credenciales incorrectas", "type": "main", "index": 0 }]
+      ]
+    },
+    "Generar JWT": {
+      "main": [[{ "node": "Responder sesión", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

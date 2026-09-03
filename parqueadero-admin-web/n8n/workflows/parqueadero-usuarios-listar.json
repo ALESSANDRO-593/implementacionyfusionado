@@ -1,0 +1,128 @@
+{
+  "id": "parkUsersListV1",
+  "name": "Parqueadero - Listar usuarios",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "panel/parqueadero/usuarios",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc101",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [-640, 0],
+      "webhookId": "panel-parqueadero-usuarios"
+    },
+    {
+      "parameters": {
+        "jsCode": "const crypto = require('crypto');\n\nconst authorization = $json.headers?.authorization ?? $json.headers?.Authorization ?? '';\nif (!authorization.startsWith('Bearer ')) {\n  return [{ json: { authorized: false, statusCode: 401, error: 'Sesión requerida.' } }];\n}\n\nconst secret = $env.JWT_SECRET;\nif (!secret) {\n  return [{ json: { authorized: false, statusCode: 500, error: 'JWT_SECRET no está configurado en n8n.' } }];\n}\n\ntry {\n  const token = authorization.slice(7).trim();\n  const parts = token.split('.');\n  if (parts.length !== 3) throw new Error('Formato inválido');\n\n  const [encodedHeader, encodedPayload, signature] = parts;\n  const expected = crypto\n    .createHmac('sha256', secret)\n    .update(`${encodedHeader}.${encodedPayload}`)\n    .digest('base64url');\n\n  const receivedBuffer = Buffer.from(signature);\n  const expectedBuffer = Buffer.from(expected);\n  if (receivedBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(receivedBuffer, expectedBuffer)) {\n    throw new Error('Firma inválida');\n  }\n\n  const payload = JSON.parse(Buffer.from(encodedPayload, 'base64url').toString('utf8'));\n  if (payload.exp && payload.exp <= Math.floor(Date.now() / 1000)) throw new Error('Token vencido');\n\n  const role = String(payload.rol ?? payload.role ?? payload.codigoRol ?? '').toUpperCase();\n  const permissions = Array.isArray(payload.permisos) ? payload.permisos : [];\n  const canManageParking = role === 'ADMINISTRADOR_PARKING' || permissions.includes('PARQUEADERO_GESTIONAR');\n  if (!canManageParking) {\n    return [{ json: { authorized: false, statusCode: 403, error: 'No tiene permisos para administrar parqueadero.' } }];\n  }\n\n  return [{ json: { authorized: true, panelUserId: Number(payload.uid ?? payload.sub ?? 0), role } }];\n} catch (error) {\n  return [{ json: { authorized: false, statusCode: 401, error: 'La sesión es inválida o ha vencido.' } }];\n}"
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc102",
+      "name": "Validar sesión y permiso",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-420, 0]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" },
+          "conditions": [
+            {
+              "id": "authorized-condition",
+              "leftValue": "={{ $json.authorized }}",
+              "rightValue": true,
+              "operator": { "type": "boolean", "operation": "equals" }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc103",
+      "name": "¿Sesión autorizada?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [-180, 0]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT\n  pu.id::int AS \"id\",\n  COALESCE(pu.estudiante_id, pu.docente_id)::int AS \"sourceId\",\n  pu.tipo_usuario AS \"type\",\n  COALESCE(e.cedula, d.cedula, pu.cedula_manual) AS \"identification\",\n  COALESCE(e.nombres, d.nombre_docente, pu.nombres_manual) AS \"fullName\",\n  COALESCE(e.correo, d.correo, pu.correo_manual, '') AS \"institutionalEmail\",\n  COALESCE(vehicle_data.plates, '[]'::json) AS \"vehicles\",\n  current_payment.payment_plan AS \"paymentPlan\",\n  current_payment.fecha_fin::text AS \"paymentValidUntil\",\n  CASE\n    WHEN pu.estado = 'INACTIVO' THEN 'INHABILITADO'\n    WHEN EXISTS (\n      SELECT 1\n      FROM parqueadero_autorizaciones pa\n      WHERE pa.parqueadero_usuario_id = pu.id\n        AND pa.estado = 'VIGENTE'\n        AND CURRENT_DATE BETWEEN pa.fecha_inicio AND pa.fecha_fin\n    ) THEN 'HABILITADO'\n    ELSE 'SIN_AUTORIZACION'\n  END AS \"serviceStatus\",\n  (pu.estado = 'ACTIVO') AS \"enabled\"\nFROM parqueadero_usuarios pu\nLEFT JOIN estudiantes e ON e.id = pu.estudiante_id\nLEFT JOIN docentes d ON d.id = pu.docente_id\nLEFT JOIN LATERAL (\n  SELECT json_agg(UPPER(pv.placa) ORDER BY pv.es_principal DESC, pv.id) AS plates\n  FROM parqueadero_vehiculos pv\n  WHERE pv.parqueadero_usuario_id = pu.id AND pv.activo = TRUE\n) vehicle_data ON TRUE\nLEFT JOIN LATERAL (\n  SELECT pm.modalidad AS payment_plan, pp.fecha_fin\n  FROM parqueadero_pagos pp\n  JOIN parqueadero_modalidades pm ON pm.id = pp.modalidad_id\n  WHERE pp.parqueadero_usuario_id = pu.id\n    AND pp.estado = 'APROBADO'\n    AND CURRENT_DATE BETWEEN pp.fecha_inicio AND pp.fecha_fin\n  ORDER BY pp.fecha_fin DESC, pp.id DESC\n  LIMIT 1\n) current_payment ON TRUE\nORDER BY COALESCE(e.nombres, d.nombre_docente, pu.nombres_manual), pu.id;",
+        "options": {}
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc104",
+      "name": "Consultar usuarios (Postgres)",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.6,
+      "position": [80, -100],
+      "alwaysOutputData": true,
+      "credentials": {
+        "postgres": {
+          "id": "s0Gn0DbaHQtIzuTr",
+          "name": "YaviBot Postgres"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.all().map(item => item.json).filter(item => item.id != null);\nreturn [{ json: { data } }];"
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc105",
+      "name": "Formatear respuesta",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [320, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": { "responseCode": 200 }
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc106",
+      "name": "Responder usuarios",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [560, -100]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { error: $json.error } }}",
+        "options": { "responseCode": "={{ $json.statusCode }}" }
+      },
+      "id": "a6c28b1e-aef5-4d34-b30d-8a8f94edc107",
+      "name": "Responder acceso denegado",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [80, 140]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [[{ "node": "Validar sesión y permiso", "type": "main", "index": 0 }]]
+    },
+    "Validar sesión y permiso": {
+      "main": [[{ "node": "¿Sesión autorizada?", "type": "main", "index": 0 }]]
+    },
+    "¿Sesión autorizada?": {
+      "main": [
+        [{ "node": "Consultar usuarios (Postgres)", "type": "main", "index": 0 }],
+        [{ "node": "Responder acceso denegado", "type": "main", "index": 0 }]
+      ]
+    },
+    "Consultar usuarios (Postgres)": {
+      "main": [[{ "node": "Formatear respuesta", "type": "main", "index": 0 }]]
+    },
+    "Formatear respuesta": {
+      "main": [[{ "node": "Responder usuarios", "type": "main", "index": 0 }]]
+    }
+  },
+  "pinData": {},
+  "settings": { "executionOrder": "v1" },
+  "active": false
+}

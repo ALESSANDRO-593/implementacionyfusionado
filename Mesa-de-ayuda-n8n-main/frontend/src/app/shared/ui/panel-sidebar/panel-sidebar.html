@@ -1,0 +1,15 @@
+<aside class="sidebar">
+  <div class="sidebar__brand">
+    <img class="sidebar__logo" src="assets/logo-yavirac.png" alt="Instituto Superior Tecnológico Yavirac" />
+  </div>
+  <nav class="sidebar__nav">
+    @for (it of items; track it.id) {
+      <button class="navitem" [class.navitem--active]="it.id === active()" (click)="ir(it.route)">
+        <span class="navitem__icon">{{ it.icon }}</span> {{ it.label }}
+      </button>
+    }
+    <button class="navitem navitem--salir" (click)="salir()">
+      <span class="navitem__icon">↩️</span> Cerrar Sesión
+    </button>
+  </nav>
+</aside>

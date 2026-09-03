@@ -1,0 +1,47 @@
+{
+  "id": "parkTariffCreateV1",
+  "name": "Parqueadero - Configuración crear tarifa",
+  "nodes": [
+    {
+      "parameters": { "httpMethod": "POST", "path": "panel/parqueadero/configuracion/tarifas/crear", "responseMode": "responseNode", "options": {} },
+      "id": "d3000003-0003-4003-8003-000000000001", "name": "Webhook", "type": "n8n-nodes-base.webhook", "typeVersion": 2, "position": [-500, 0], "webhookId": "panel-parqueadero-configuracion-tarifa-crear"
+    },
+    {
+      "parameters": { "jsCode": "const crypto=require('crypto'); const fail=(statusCode,error)=>[{json:{ok:false,statusCode,error}}]; const authorization=$json.headers?.authorization??''; if(!authorization.startsWith('Bearer ')) return fail(401,'Sesión requerida.'); const secret=$env.JWT_SECRET; if(!secret) return fail(500,'JWT_SECRET no está configurado.'); try { const [h,p,s,x]=authorization.slice(7).trim().split('.'); if(!h||!p||!s||x) throw new Error(); const expected=crypto.createHmac('sha256',secret).update(`${h}.${p}`).digest('base64url'); const l=Buffer.from(s),r=Buffer.from(expected); if(l.length!==r.length||!crypto.timingSafeEqual(l,r)) throw new Error(); const payload=JSON.parse(Buffer.from(p,'base64url').toString('utf8')); if(!payload.exp||payload.exp<=Math.floor(Date.now()/1000)) throw new Error(); const role=String(payload.rol??payload.role??'').toUpperCase(); const permissions=(Array.isArray(payload.permisos)?payload.permisos:[]).map(v=>String(v).toLowerCase()); if(role!=='ADMINISTRADOR_PARKING'&&!permissions.includes('parqueadero.gestionar')) return fail(403,'No tiene permisos para configurar parqueadero.'); const body=$json.body??{}; const modality=String(body.modality??'').toUpperCase(); const vehicleType=String(body.vehicleType??'').toUpperCase(); const amount=Number(body.amount); const active=body.active; if(!['DIARIO','MENSUAL'].includes(modality)) return fail(400,'Seleccione una modalidad válida.'); if(!['AUTO','MOTO'].includes(vehicleType)) return fail(400,'Seleccione un tipo de vehículo válido.'); if(!Number.isFinite(amount)||amount<0||amount>99999999.99) return fail(400,'Ingrese un precio válido.'); if(active===true&&amount<=0) return fail(400,'Una tarifa activa debe tener un precio mayor a cero.'); if(typeof active!=='boolean') return fail(400,'El estado de la tarifa no es válido.'); return [{json:{ok:true,modality,vehicleType,amount:Math.round(amount*100)/100,active}}]; } catch { return fail(401,'La sesión es inválida o ha vencido.'); }" },
+      "id": "d3000003-0003-4003-8003-000000000002", "name": "Autorizar y validar", "type": "n8n-nodes-base.code", "typeVersion": 2, "position": [-280, 0]
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "ok", "leftValue": "={{ $json.ok }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "d3000003-0003-4003-8003-000000000003", "name": "¿Solicitud autorizada?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [-60, 0]
+    },
+    {
+      "parameters": { "operation": "executeQuery", "query": "WITH inserted AS (\n  INSERT INTO public.parqueadero_modalidades (modalidad, tipo_vehiculo, precio, activo)\n  SELECT $1, $2, $3::numeric(10,2), $4::boolean\n  WHERE NOT EXISTS (\n    SELECT 1 FROM public.parqueadero_modalidades\n    WHERE modalidad = $1 AND tipo_vehiculo = $2\n  )\n  RETURNING id, precio, activo\n)\nSELECT\n  COALESCE((SELECT TRUE FROM inserted LIMIT 1), FALSE) AS success,\n  (SELECT id::int FROM inserted LIMIT 1) AS id,\n  (SELECT precio::double precision FROM inserted LIMIT 1) AS amount,\n  (SELECT activo FROM inserted LIMIT 1) AS active,\n  CASE WHEN NOT EXISTS (SELECT 1 FROM inserted) THEN 'Ya existe una tarifa para esa modalidad y tipo de vehículo.' ELSE NULL END AS error,\n  CASE WHEN NOT EXISTS (SELECT 1 FROM inserted) THEN 409 ELSE 201 END AS \"statusCode\";", "options": { "queryReplacement": "={{ [$json.modality, $json.vehicleType, $json.amount, $json.active] }}" } },
+      "id": "d3000003-0003-4003-8003-000000000004", "name": "Crear tarifa (Postgres)", "type": "n8n-nodes-base.postgres", "typeVersion": 2.6, "position": [180, -100],
+      "credentials": { "postgres": { "id": "s0Gn0DbaHQtIzuTr", "name": "YaviBot Postgres" } }
+    },
+    {
+      "parameters": { "conditions": { "options": { "caseSensitive": true, "leftValue": "", "typeValidation": "strict" }, "conditions": [{ "id": "created", "leftValue": "={{ $json.success }}", "rightValue": true, "operator": { "type": "boolean", "operation": "equals" } }], "combinator": "and" }, "options": {} },
+      "id": "d3000003-0003-4003-8003-000000000005", "name": "¿Tarifa creada?", "type": "n8n-nodes-base.if", "typeVersion": 2, "position": [420, -100]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ $json }}", "options": { "responseCode": 201 } },
+      "id": "d3000003-0003-4003-8003-000000000006", "name": "Responder tarifa", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [650, -180]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "d3000003-0003-4003-8003-000000000007", "name": "Responder conflicto", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [650, 0]
+    },
+    {
+      "parameters": { "respondWith": "json", "responseBody": "={{ { error: $json.error } }}", "options": { "responseCode": "={{ $json.statusCode }}" } },
+      "id": "d3000003-0003-4003-8003-000000000008", "name": "Responder error", "type": "n8n-nodes-base.respondToWebhook", "typeVersion": 1.4, "position": [180, 120]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Autorizar y validar", "type": "main", "index": 0 }]] },
+    "Autorizar y validar": { "main": [[{ "node": "¿Solicitud autorizada?", "type": "main", "index": 0 }]] },
+    "¿Solicitud autorizada?": { "main": [[{ "node": "Crear tarifa (Postgres)", "type": "main", "index": 0 }], [{ "node": "Responder error", "type": "main", "index": 0 }]] },
+    "Crear tarifa (Postgres)": { "main": [[{ "node": "¿Tarifa creada?", "type": "main", "index": 0 }]] },
+    "¿Tarifa creada?": { "main": [[{ "node": "Responder tarifa", "type": "main", "index": 0 }], [{ "node": "Responder conflicto", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {}, "settings": { "executionOrder": "v1" }, "active": false
+}

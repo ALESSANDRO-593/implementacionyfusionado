@@ -1,0 +1,81 @@
+{
+  "name": "Panel - Login",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "panel/login",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "*"
+        }
+      },
+      "id": "n_wh",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        300
+      ],
+      "webhookId": "yb-panel-login"
+    },
+    {
+      "parameters": {
+        "jsCode": "const { Client } = require('pg');\nconst bcrypt = require('bcryptjs');\nconst crypto = require('crypto');\nconst SECRET = 'yavibot-dev-secret-change-me';\nconst body = $json.body || {};\nconst cedula = String(body.cedula || '');\nconst password = String(body.password || '');\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const q = await client.query(\n    `SELECT u.id, u.nombres, u.password_hash, u.rol_id, r.codigo AS rol,\n       COALESCE(array_agg(uc.carrera_id) FILTER (WHERE uc.carrera_id IS NOT NULL), '{}') AS carreras\n     FROM usuarios_panel u JOIN roles r ON r.id = u.rol_id\n     LEFT JOIN usuarios_carreras uc ON uc.usuario_id = u.id\n     WHERE u.cedula = $1 AND u.activo = true GROUP BY u.id, u.rol_id, r.codigo`, [cedula]);\n  const fail = { json: { _status:401, _body: { ok:false, error:{ code:'CRED', message:'Usuario o contraseña incorrectos' } } } };\n  if(!q.rows.length) return [fail];\n  const u = q.rows[0];\n  if(!bcrypt.compareSync(password, u.password_hash)) return [fail];\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  const header = b64(JSON.stringify({ alg:'HS256', typ:'JWT' }));\n  const payload = b64(JSON.stringify({ sub:String(u.id), ced:cedula, rol:u.rol, rol_id:Number(u.rol_id), carreras:u.carreras, exp:Math.floor(Date.now()/1000)+3600 }));\n  const sig = b64(crypto.createHmac('sha256', SECRET).update(header+'.'+payload).digest());\n  return [{ json: { _status:200, _body: { ok:true, data:{ token: header+'.'+payload+'.'+sig, rol:u.rol, nombres:u.nombres } } } }];\n} finally { await client.end(); }"
+      },
+      "id": "n_code",
+      "name": "Lógica",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        260,
+        300
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json._body }}",
+        "options": {
+          "responseCode": "={{ $json._status }}"
+        }
+      },
+      "id": "n_resp",
+      "name": "Responder",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        520,
+        300
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Lógica",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Lógica": {
+      "main": [
+        [
+          {
+            "node": "Responder",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

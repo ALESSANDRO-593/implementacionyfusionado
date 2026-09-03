@@ -1,0 +1,13 @@
+<header class="page-header"><div><span class="eyebrow">Panel principal</span><h1>Resumen del parqueadero</h1><p>Administre usuarios invitados, vehículos, solicitudes y configuración.</p></div><a class="primary-button" routerLink="/tickets">Gestionar tickets</a></header>
+@if (error()) { <div class="api-message" role="alert"><span>{{ error() }}</span><button type="button" (click)="load()">Reintentar</button></div> }
+<section class="metrics" aria-label="Indicadores del parqueadero">
+  <article class="metric-card metric-card--available"><span>Espacios disponibles</span><strong>{{ loading() ? '—' : capacity().available }}</strong><small>de {{ capacity().total }} espacios configurados</small></article>
+  <article class="metric-card"><span>Solicitudes pendientes</span><strong>{{ loading() ? '—' : pendingTickets().length }}</strong><small>requieren revisión</small></article>
+  <article class="metric-card"><span>Usuarios invitados</span><strong>{{ loading() ? '—' : guestCount() }}</strong><small>{{ vehicles().length }} vehículos registrados</small></article>
+</section>
+<section class="dashboard-grid"><article class="panel tickets-panel">
+  <div class="panel-heading"><div><span class="eyebrow">Por resolver</span><h2>Solicitudes pendientes</h2></div><a routerLink="/tickets">Ver todas</a></div>
+  <div class="ticket-list">@for (ticket of pendingTickets().slice(0, 5); track ticket.id) { @let user = userFor(ticket.parkingUserId); <div class="ticket-row"><span class="ticket-code">#{{ ticket.id }}</span><div><strong>{{ user?.fullName ?? 'Usuario no disponible' }}</strong><small>{{ user?.type === 'DOCENTE' ? 'Docente' : user?.type === 'ESTUDIANTE' ? 'Estudiante' : 'Invitado' }} · {{ ticket.modality === 'DIARIO' ? 'Diaria' : 'Mensual' }}</small></div><span class="status">Pendiente</span></div> } @empty { <div class="empty">No hay solicitudes pendientes.</div> }</div>
+</article><article class="panel quick-panel"><div class="panel-heading"><div><span class="eyebrow">Administración</span><h2>Accesos rápidos</h2></div></div>
+  <nav class="quick-links" aria-label="Accesos rápidos"><a routerLink="/tickets"><span>T</span><div><strong>Gestión de tickets</strong><small>Aprobar, rechazar o registrar</small></div></a><a routerLink="/usuarios"><span>U</span><div><strong>Usuarios</strong><small>Consultar o registrar invitados</small></div></a><a routerLink="/vehiculos"><span>V</span><div><strong>Vehículos</strong><small>Asignar vehículos a invitados</small></div></a><a routerLink="/configuracion"><span>⚙</span><div><strong>Configuración</strong><small>Tarifas y capacidad</small></div></a></nav>
+</article></section>

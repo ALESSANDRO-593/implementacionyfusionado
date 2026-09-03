@@ -1,0 +1,16 @@
+<div class="ppag">
+  <span class="ppag__info">
+    @if (total() === 0) { Sin resultados }
+    @else { Mostrando {{ primero() }} a {{ ultimo() }} de {{ total() }} resultados }
+  </span>
+
+  @if (totalPaginas() > 1) {
+    <div class="ppag__pages">
+      <button class="ppag__btn" (click)="ir(pagina() - 1)" [disabled]="pagina() <= 1" aria-label="Página anterior">‹</button>
+      @for (p of paginas(); track p) {
+        <button class="ppag__btn" [class.ppag__btn--active]="p === pagina()" (click)="ir(p)">{{ p }}</button>
+      }
+      <button class="ppag__btn" (click)="ir(pagina() + 1)" [disabled]="pagina() >= totalPaginas()" aria-label="Página siguiente">›</button>
+    </div>
+  }
+</div>

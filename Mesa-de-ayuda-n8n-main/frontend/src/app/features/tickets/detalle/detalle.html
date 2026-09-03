@@ -1,0 +1,129 @@
+<app-panel-shell active="tickets" icono="🎫" titulo="Detalle del Ticket" subtitulo="Seguimiento de trámites académicos">
+
+  <nav class="crumbs">
+    <button class="crumbs__link" (click)="regresar()">Tickets</button>
+    <span class="crumbs__sep">›</span>
+    <span class="crumbs__actual">Detalle del Ticket</span>
+  </nav>
+
+  @if (cargando()) {
+    <section class="pcard"><p class="pmuted">Cargando…</p></section>
+  } @else if (!ticket()) {
+    <section class="pcard"><p class="perr">⚠ {{ error() || 'No se encontró el ticket.' }}</p></section>
+  } @else if (ticket(); as t) {
+
+    <!-- Cabecera del ticket con el avance -->
+    <section class="pcard dhead">
+      <div class="dhead__left">
+        <button class="pbtn pbtn--ghost pbtn--sm" (click)="regresar()">‹ Volver</button>
+        <div class="dhead__id">
+          <h2 class="dhead__code">Ticket {{ t.codigo }}</h2>
+          <span class="pill" [class]="estadoClase(t.estado)">{{ t.estado }}</span>
+        </div>
+        <p class="dhead__meta">Creado el {{ t.fecha }} · {{ t.tipo }}</p>
+      </div>
+
+      <ol class="pasos">
+        @for (p of pasos; track p; let i = $index) {
+          <li class="paso" [class.paso--hecho]="i <= pasoActual()">
+            <span class="paso__punto">@if (i < pasoActual()) { ✓ }</span>
+            <span class="paso__label">{{ p }}</span>
+          </li>
+        }
+      </ol>
+    </section>
+
+    <div class="dgrid">
+      <!-- Información del ticket -->
+      <section class="pcard">
+        <h3 class="pcard__title">ℹ️ Información del Ticket</h3>
+        <dl class="datos">
+          <div class="dato"><dt>Número de Ticket</dt><dd class="dato--fuerte">{{ t.codigo }}</dd></div>
+          <div class="dato"><dt>Estado</dt><dd><span class="pill" [class]="estadoClase(t.estado)">{{ t.estado }}</span></dd></div>
+          <div class="dato"><dt>Tipo de Solicitud</dt><dd>{{ t.tipo }}</dd></div>
+          <div class="dato"><dt>Fecha de Creación</dt><dd>{{ t.fecha }}</dd></div>
+        </dl>
+      </section>
+
+      <!-- Datos del estudiante -->
+      <section class="pcard">
+        <h3 class="pcard__title">🎓 Datos del Estudiante</h3>
+        <dl class="datos">
+          <div class="dato"><dt>Nombre</dt><dd class="dato--fuerte">{{ t.nombres }}</dd></div>
+          <div class="dato"><dt>Cédula</dt><dd>{{ t.cedula }}</dd></div>
+          <div class="dato"><dt>Carrera</dt><dd>{{ t.carrera }}</dd></div>
+          <div class="dato"><dt>Nivel / Paralelo</dt><dd>{{ t.nivel }} “{{ t.paralelo }}”</dd></div>
+          <div class="dato dato--full"><dt>Correo</dt><dd>{{ t.correo }}</dd></div>
+        </dl>
+      </section>
+    </div>
+
+    @if (t.descripcion) {
+      <section class="pcard">
+        <h3 class="pcard__title">📝 Detalle de la solicitud</h3>
+        <p class="descripcion">{{ t.descripcion }}</p>
+      </section>
+    }
+
+    <!-- Responder + historial -->
+    <div class="dgrid dgrid--resp">
+      <section class="pcard">
+        <h3 class="pcard__title">💬 Responder al estudiante</h3>
+
+        <label class="pfield">
+          <span class="pfield__label">Estado del Ticket</span>
+          <select class="pselect pselect--full" [ngModel]="estado()" (ngModelChange)="estado.set($event)">
+            <option value="Pendiente">Pendiente</option>
+            <option value="En Proceso">En Proceso</option>
+            <option value="Resuelto">Resuelto</option>
+          </select>
+        </label>
+
+        <label class="pfield">
+          <span class="pfield__label">Respuesta <span class="pfield__req">*</span></span>
+          <textarea rows="6" maxlength="1000" placeholder="Escriba aquí la respuesta para el estudiante…"
+                    [ngModel]="respuesta()" (ngModelChange)="respuesta.set($event)"></textarea>
+          <span class="pfield__counter">{{ respuesta().length }}/1000</span>
+        </label>
+
+        @if (mensaje()) { <p class="pok">✔ {{ mensaje() }}</p> }
+        @if (error()) { <p class="perr">⚠ {{ error() }}</p> }
+
+        <div class="dacciones">
+          <button class="pbtn pbtn--ghost" (click)="regresar()">Cancelar</button>
+          <button class="pbtn pbtn--orange" (click)="guardar(false)" [disabled]="guardando()">
+            {{ guardando() ? 'Guardando…' : '💾 Guardar Cambios' }}
+          </button>
+          <button class="pbtn pbtn--green" (click)="guardar(true)" [disabled]="guardando()">✔ Resolver Ticket</button>
+        </div>
+      </section>
+
+      <section class="pcard">
+        <h3 class="pcard__title">🕘 Historial de respuestas</h3>
+        @if (historial().length === 0) {
+          <p class="pmuted">Sin movimientos todavía.</p>
+        } @else {
+          <ol class="linea">
+            @for (h of historial(); track $index) {
+              <li class="linea__item">
+                <span class="linea__punto"></span>
+                <div class="linea__cuerpo">
+                  <div class="linea__cab">
+                    <span class="linea__estado">{{ h.estado_nuevo }}</span>
+                    <span class="linea__fecha">{{ h.fecha }}</span>
+                  </div>
+                  @if (h.estado_anterior) {
+                    <p class="linea__cambio">{{ h.estado_anterior }} → {{ h.estado_nuevo }}</p>
+                  } @else {
+                    <p class="linea__cambio">Ticket creado</p>
+                  }
+                  @if (h.respuesta) { <p class="linea__resp">{{ h.respuesta }}</p> }
+                </div>
+              </li>
+            }
+          </ol>
+        }
+      </section>
+    </div>
+  }
+</app-panel-shell>

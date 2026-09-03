@@ -1,0 +1,24 @@
+.pselect--corto { min-width: 150px; }
+.pselect--full  { width: 100%; }
+/* Selector de estado dentro de la tabla */
+.pselect--mini  { min-width: 140px; padding: 8px 34px 8px 12px; font-size: 13px; }
+
+/* Ventana emergente: formulario de reporte y vista de la foto ------- */
+.modal {
+  position: fixed; inset: 0; background: rgba(15, 27, 48, .55); z-index: 50;
+  display: flex; align-items: center; justify-content: center; padding: 24px;
+  overflow-y: auto;
+}
+.modal__caja {
+  background: var(--surface); border-radius: var(--radius-lg); box-shadow: var(--shadow-card);
+  padding: 26px 28px 24px; width: min(640px, 100%); max-height: 90vh; overflow-y: auto;
+}
+.modal__cab { display: flex; align-items: flex-start; gap: 16px; }
+.modal__cab > div { flex: 1 1 auto; min-width: 0; }
+.modal__cerrar {
+  border: none; background: var(--surface-2); color: var(--text-500);
+  width: 34px; height: 34px; border-radius: 50%; font-size: 15px; flex: none;
+}
+.modal__cerrar:hover { background: #E9EDF5; color: var(--text-900); }
+.modal__acciones { display: flex; justify-content: flex-end; gap: 12px; margin-top: 24px; }
+.modal__foto { max-width: min(900px, 92vw); max-height: 88vh; border-radius: var(--radius-md); box-shadow: var(--shadow-card); }

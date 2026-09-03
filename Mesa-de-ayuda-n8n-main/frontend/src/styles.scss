@@ -1,0 +1,37 @@
+@use './styles/tokens';
+@use './styles/panel';
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  font-family: var(--font-sans);
+  color: var(--text-900);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+
+button { font-family: inherit; cursor: pointer; }
+
+// Utilidades compartidas
+.btn {
+  border: none;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  padding: 12px 20px;
+  transition: filter .15s ease, transform .05s ease;
+}
+.btn:active { transform: translateY(1px); }
+.btn--primary { background: var(--btn); color: #fff; }
+.btn--primary:hover { background: var(--btn-hover); }
+.btn--success { background: var(--success); color: #fff; }
+.btn--danger  { background: var(--danger);  color: #fff; }
+
+.card {
+  background: var(--surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+}
