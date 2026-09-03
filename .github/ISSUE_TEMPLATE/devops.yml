@@ -1,0 +1,59 @@
+﻿name: Tarea técnica o DevOps
+description: Registrar mantenimiento, despliegues o cambios de infraestructura
+title: "[DEVOPS] "
+labels:
+  - documentation
+body:
+  - type: dropdown
+    id: tipo
+    attributes:
+      label: Tipo de tarea
+      options:
+        - CI/CD
+        - Despliegue
+        - Workflows n8n
+        - Base de datos
+        - Nginx
+        - Docker
+        - Seguridad
+        - Respaldos
+        - Documentación
+    validations:
+      required: true
+
+  - type: textarea
+    id: objetivo
+    attributes:
+      label: Objetivo
+      description: Describe qué se necesita realizar.
+    validations:
+      required: true
+
+  - type: textarea
+    id: actividades
+    attributes:
+      label: Actividades previstas
+      placeholder: |
+        - [ ] Crear respaldo
+        - [ ] Aplicar cambio
+        - [ ] Ejecutar validaciones
+        - [ ] Documentar resultado
+    validations:
+      required: true
+
+  - type: textarea
+    id: validacion
+    attributes:
+      label: Evidencia o validación esperada
+      description: Indica cómo se comprobará que la tarea quedó correctamente realizada.
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: produccion
+    attributes:
+      label: Impacto en producción
+      options:
+        - label: Revisé si esta tarea puede afectar producción.
+          required: true
+        - label: Crearé un respaldo antes de realizar cambios destructivos.

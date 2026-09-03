@@ -1,0 +1,59 @@
+﻿name: Solicitar una mejora
+description: Proponer una funcionalidad o mejora para el sistema
+title: "[MEJORA] "
+labels:
+  - enhancement
+body:
+  - type: dropdown
+    id: modulo
+    attributes:
+      label: Módulo relacionado
+      options:
+        - Mesa de ayuda
+        - Aplicación de matrícula
+        - Administración de parqueadero
+        - Workflows n8n
+        - Base de datos
+        - Infraestructura y despliegue
+        - Proyecto completo
+    validations:
+      required: true
+
+  - type: textarea
+    id: necesidad
+    attributes:
+      label: Necesidad identificada
+      description: Explica el problema o necesidad que origina esta propuesta.
+    validations:
+      required: true
+
+  - type: textarea
+    id: propuesta
+    attributes:
+      label: Solución propuesta
+      description: Describe cómo debería funcionar la mejora.
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Criterios de aceptación
+      placeholder: |
+        - Debe permitir...
+        - Debe mostrar...
+        - Debe validar...
+    validations:
+      required: true
+
+  - type: dropdown
+    id: prioridad
+    attributes:
+      label: Prioridad sugerida
+      options:
+        - Baja
+        - Media
+        - Alta
+        - Crítica
+    validations:
+      required: true
