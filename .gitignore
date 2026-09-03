@@ -26,3 +26,6 @@
 # Sistema operativo
 **/Thumbs.db
 **/.DS_Store
+
+# Preparación temporal de n8n
+.n8n-deploy/

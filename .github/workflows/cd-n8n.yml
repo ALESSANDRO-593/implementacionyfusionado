@@ -1,0 +1,159 @@
+﻿name: CD - Actualizar workflows n8n
+
+on:
+  workflow_dispatch:
+    inputs:
+      workflow_ids:
+        description: "IDs separados por comas"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: produccion-n8n
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Actualizar workflows seleccionados
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.5"
+
+      - name: Preparar workflows
+        run: node scripts/prepare-n8n-workflows.mjs
+
+      - name: Seleccionar workflows solicitados
+        env:
+          WORKFLOW_IDS: ${{ inputs.workflow_ids }}
+        run: |
+          set -euo pipefail
+
+          ids="$(printf '%s' "$WORKFLOW_IDS" | tr -d '[:space:]')"
+
+          if ! printf '%s' "$ids" | grep -Eq '^[A-Za-z0-9_-]+(,[A-Za-z0-9_-]+)*$'; then
+            echo "Formato de IDs no válido"
+            exit 1
+          fi
+
+          mkdir -p .n8n-deploy/selected
+
+          IFS=',' read -ra requested <<< "$ids"
+
+          for id in "${requested[@]}"; do
+            source=".n8n-deploy/workflows/${id}.json"
+
+            if [ ! -f "$source" ]; then
+              echo "No existe un workflow preparado con ID: $id"
+              exit 1
+            fi
+
+            cp "$source" ".n8n-deploy/selected/${id}.json"
+            echo "SELECCIONADO=$id"
+          done
+
+          tar -czf n8n-workflows-selected.tar.gz \
+            -C .n8n-deploy/selected .
+
+      - name: Configurar conexión SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s' '${{ secrets.VPS_SSH_PRIVATE_KEY }}' |
+            base64 -d > ~/.ssh/yavibot_deploy
+          printf '%s\n' '${{ secrets.VPS_KNOWN_HOSTS }}' > ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/yavibot_deploy
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preparar recepción en el VPS
+        run: |
+          ssh -i ~/.ssh/yavibot_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "mkdir -p /root/deploy/github-actions-n8n-${GITHUB_RUN_ID}"
+
+      - name: Transferir workflows
+        run: |
+          scp -i ~/.ssh/yavibot_deploy \
+            n8n-workflows-selected.tar.gz \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/deploy/github-actions-n8n-${GITHUB_RUN_ID}/"
+
+      - name: Respaldar, importar y publicar
+        run: |
+          ssh -i ~/.ssh/yavibot_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "RUN_ID=${GITHUB_RUN_ID} bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          release="/root/deploy/github-actions-n8n-${RUN_ID}"
+          backup="/root/backups/n8n-before-github-actions-${RUN_ID}"
+          container_import="/tmp/n8n-github-actions-${RUN_ID}"
+          container_backup="/tmp/n8n-backup-github-actions-${RUN_ID}"
+
+          mkdir -p "${release}/workflows" "${backup}"
+
+          tar -xzf "${release}/n8n-workflows-selected.tar.gz" \
+            -C "${release}/workflows"
+
+          docker exec -u node yavibot-n8n sh -c \
+            "rm -rf '${container_backup}' && mkdir -p '${container_backup}' && n8n export:workflow --backup --output='${container_backup}/'"
+
+          docker cp \
+            "yavibot-n8n:${container_backup}/." \
+            "${backup}/"
+
+          docker exec -u node yavibot-n8n sh -c \
+            "rm -rf '${container_import}' && mkdir -p '${container_import}'"
+
+          docker cp \
+            "${release}/workflows/." \
+            "yavibot-n8n:${container_import}/"
+
+          for workflow in "${release}"/workflows/*.json; do
+            id="$(basename "$workflow" .json)"
+
+            echo "IMPORTANDO=${id}"
+
+            docker exec -u node yavibot-n8n \
+              n8n import:workflow \
+              --input="${container_import}/${id}.json"
+
+            docker exec -u node yavibot-n8n \
+              n8n publish:workflow \
+              --id="${id}"
+          done
+
+          cd /root/yavibot
+          docker compose restart n8n
+
+          for intento in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:5678/healthz > /dev/null; then
+              echo "N8N_ACTIVO"
+              break
+            fi
+
+            if [ "$intento" -eq 30 ]; then
+              echo "n8n no respondió después del reinicio"
+              exit 1
+            fi
+
+            sleep 2
+          done
+
+          if docker logs --since 2m yavibot-n8n 2>&1 |
+            grep -Ei 'failed to activate|duplicate webhook|error activating'; then
+            echo "Se detectaron errores de activación"
+            exit 1
+          fi
+
+          echo "WORKFLOWS_ACTUALIZADOS"
+          echo "RESPALDO=${backup}"
+          REMOTE
