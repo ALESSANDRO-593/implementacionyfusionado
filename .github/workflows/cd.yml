@@ -1,0 +1,127 @@
+﻿name: CD - Desplegar en producción
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: produccion-yavibot
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Compilar y desplegar
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.5"
+
+      - name: Compilar Mesa de ayuda
+        working-directory: Mesa-de-ayuda-n8n-main/frontend
+        run: |
+          npm ci
+          npm run build
+
+      - name: Compilar aplicación de matrícula
+        working-directory: certificado-de-matricula-app-main/certi-matricula-app
+        run: |
+          npm ci
+          npm run build
+
+      - name: Compilar administración de parqueadero
+        working-directory: parqueadero-admin-web
+        run: |
+          npm ci
+          npm run build
+
+      - name: Verificar compilados
+        run: |
+          test -f Mesa-de-ayuda-n8n-main/frontend/dist/frontend/browser/index.html
+          test -f certificado-de-matricula-app-main/certi-matricula-app/www/index.html
+          test -f parqueadero-admin-web/dist/parqueadero-admin-web/browser/index.html
+
+      - name: Empaquetar compilados
+        run: |
+          tar -czf mesa-web.tar.gz \
+            -C Mesa-de-ayuda-n8n-main/frontend/dist/frontend/browser .
+
+          tar -czf matricula-web.tar.gz \
+            -C certificado-de-matricula-app-main/certi-matricula-app/www .
+
+          tar -czf parking-web.tar.gz \
+            -C parqueadero-admin-web/dist/parqueadero-admin-web/browser .
+
+      - name: Configurar conexión SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf '%s\n' '${{ secrets.VPS_SSH_PRIVATE_KEY }}' > ~/.ssh/yavibot_deploy
+          printf '%s\n' '${{ secrets.VPS_KNOWN_HOSTS }}' > ~/.ssh/known_hosts
+          chmod 700 ~/.ssh
+          chmod 600 ~/.ssh/yavibot_deploy
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Preparar recepción en el VPS
+        run: |
+          ssh -i ~/.ssh/yavibot_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "mkdir -p /root/deploy/github-actions-${GITHUB_RUN_ID}"
+
+      - name: Transferir compilados
+        run: |
+          scp -i ~/.ssh/yavibot_deploy \
+            mesa-web.tar.gz \
+            matricula-web.tar.gz \
+            parking-web.tar.gz \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}:/root/deploy/github-actions-${GITHUB_RUN_ID}/"
+
+      - name: Publicar y respaldar versiones anteriores
+        run: |
+          ssh -i ~/.ssh/yavibot_deploy \
+            "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+            "RUN_ID=${GITHUB_RUN_ID} bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          release="/root/deploy/github-actions-${RUN_ID}"
+          backup="/root/backups/web-before-github-actions-${RUN_ID}"
+
+          mkdir -p \
+            "${release}/mesa" \
+            "${release}/matricula" \
+            "${release}/parking" \
+            "${backup}"
+
+          tar -xzf "${release}/mesa-web.tar.gz" -C "${release}/mesa"
+          tar -xzf "${release}/matricula-web.tar.gz" -C "${release}/matricula"
+          tar -xzf "${release}/parking-web.tar.gz" -C "${release}/parking"
+
+          test -f "${release}/mesa/index.html"
+          test -f "${release}/matricula/index.html"
+          test -f "${release}/parking/index.html"
+
+          mv /root/yavibot/web "${backup}/mesa-web"
+          mv /root/yavibot-app/web "${backup}/matricula-web"
+          mv /root/yavibot-app/parking "${backup}/parking-web"
+
+          mv "${release}/mesa" /root/yavibot/web
+          mv "${release}/matricula" /root/yavibot-app/web
+          mv "${release}/parking" /root/yavibot-app/parking
+
+          nginx -t
+          systemctl reload nginx
+
+          curl -fsS http://127.0.0.1/ >/dev/null
+          curl -fsS http://127.0.0.1/app/ >/dev/null
+          curl -fsS http://127.0.0.1/parking/ >/dev/null
+
+          echo "DESPLIEGUE_COMPLETADO"
+          echo "RESPALDO=${backup}"
+          REMOTE
