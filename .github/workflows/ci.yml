@@ -48,3 +48,25 @@ jobs:
 
       - name: Compilar aplicación
         run: npm run build
+
+  validate-n8n:
+    name: Validar workflows n8n
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar repositorio
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20.19.5"
+
+      - name: Validar IDs, credenciales y webhooks
+        run: node scripts/prepare-n8n-workflows.mjs
+
+      - name: Confirmar cantidad preparada
+        run: |
+          cantidad=$(find .n8n-deploy/workflows -type f -name '*.json' | wc -l)
+          echo "WORKFLOWS_VALIDOS=$cantidad"
+          test "$cantidad" -eq 50
