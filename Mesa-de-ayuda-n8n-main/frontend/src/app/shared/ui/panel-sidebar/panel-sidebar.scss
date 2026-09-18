@@ -16,12 +16,13 @@
 .navitem {
   display: flex; align-items: center; gap: 12px; padding: 15px 26px; color: #cdd8ec;
   cursor: pointer; font-weight: 600; font-size: 15px; border: none; background: none; text-align: left; width: 100%;
-  border-left: 4px solid transparent;
+  border-left: 4px solid transparent; text-decoration: none;
 }
 .navitem__icon { font-size: 16px; line-height: 1; }
 .navitem:hover { background: rgba(255, 255, 255, .06); color: #fff; }
 .navitem--active { background: var(--orange-500); color: #fff; border-left-color: #fff; }
 .navitem--active:hover { background: var(--orange-500); color: #fff; }
+.navitem--parking { border-top: 1px solid rgba(255, 255, 255, .10); }
 
 /* "Cerrar Sesión" siempre al pie, para que el menú no quede a medias. */
 .navitem--salir { margin-top: auto; border-top: 1px solid rgba(255, 255, 255, .10); }
@@ -33,5 +34,6 @@
   .sidebar__nav { flex-direction: row; flex: 1; }
   .navitem { width: auto; white-space: nowrap; padding: 10px 16px; border-left: none; border-bottom: 3px solid transparent; }
   .navitem--active { border-left-color: transparent; border-bottom-color: #fff; }
+  .navitem--parking { border-top: none; }
   .navitem--salir { margin-top: 0; margin-left: auto; border-top: none; }
 }
