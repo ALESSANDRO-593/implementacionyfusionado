@@ -1,81 +1,81 @@
 {
-  "name": "Chatbot - Certificado de Matrícula",
-  "nodes": [
-    {
-      "parameters": {
-        "httpMethod": "POST",
-        "path": "chatbot/certificado",
-        "responseMode": "responseNode",
-        "options": {
-          "allowedOrigins": "*"
-        }
-      },
-      "id": "n_wh",
-      "name": "Webhook",
-      "type": "n8n-nodes-base.webhook",
-      "typeVersion": 2.1,
-      "position": [
-        0,
-        300
-      ],
-      "webhookId": "yb-chatbot-certificado"
-    },
-    {
-      "parameters": {
-        "jsCode": "function verifyChat(token){\n  const crypto = require('crypto');\n  const SECRET = 'yavibot-dev-secret-change-me';\n  if(!token) return null;\n  const parts = String(token).split('.');\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b => Buffer.from(b).toString('base64').replace(/=/g,'').replace(/\\+/g,'-').replace(/\\//g,'_');\n  if(b64(crypto.createHmac('sha256', SECRET).update(h+'.'+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,'+').replace(/_/g,'/'),'base64').toString()); } catch(e){ return null; }\n  if(c.typ !== 'chat') return null;\n  if(c.exp && c.exp < Math.floor(Date.now()/1000)) return null;\n  return c;\n}\n\nconst { Client } = require('pg');\nconst QRCode = require('qrcode');\nconst PDFDocument = require('pdfkit');\nconst nodemailer = require('nodemailer');\nconst fs = require('fs');\n\nconst claims = verifyChat($json.headers['x-chat-session'] || $json.headers['X-Chat-Session']);\nif(!claims) return [{ json: { _status:401, _body:{ ok:false, error:{ code:'NO_AUTENTICADO', message:'Sesión de chat no válida' } } } }];\n\nconst client = new Client({host:'postgres',port:5432,user:'yavibot',password:'yavibot_dev_2026',database:'yavibot'});\nawait client.connect();\ntry {\n  const est = (await client.query(\n    `SELECT e.id, e.nombres, e.correo, e.cedula, e.nivel, e.paralelo, e.modalidad, e.nivel_ingreso,\n       c.nombre AS carrera,\n       pa.codigo AS periodo_codigo, pa.nombre AS periodo_nombre,\n       pi.codigo AS ingreso_codigo, pi.nombre AS ingreso_nombre\n     FROM estudiantes e\n     JOIN carreras c ON c.id = e.carrera_id\n     LEFT JOIN periodos_academicos pa ON pa.vigente = true\n     LEFT JOIN periodos_academicos pi ON pi.id = e.periodo_ingreso_id\n     WHERE e.cedula = $1`, [claims.sub])).rows[0];\n  if(!est) return [{ json: { _status:404, _body:{ ok:false, error:{ code:'NO_ENCONTRADO', message:'Estudiante no encontrado' } } } }];\n\n  // Configuración institucional (membrete + firma) — editable sin tocar código\n  const cfgRows = (await client.query(\n    `SELECT clave, valor FROM configuracion_sistema WHERE clave LIKE 'institucion.%' OR clave LIKE 'firma.%'`)).rows;\n  const cfg = Object.fromEntries(cfgRows.map(r => [r.clave, r.valor]));\n\n  // 1) QR nuevo e irrepetible\n  const qr = (await client.query(\n    `INSERT INTO qr_codigos (estudiante_id, payload) VALUES ($1, $2) RETURNING id, identificador`,\n    [est.id, JSON.stringify({ tipo:'CERT_MATRICULA' })])).rows[0];\n  const verifyUrl = 'http://localhost:4200/verificar/' + qr.identificador;\n  const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin:2, width:260 });\n  const qrBuffer = Buffer.from(qrDataUrl.split(',')[1], 'base64');\n\n  // 2) Texto conforme al formato oficial del certificado\n  const cap = s => { s = String(s || '').trim().toLowerCase(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };\n  const tipo = s => String(s || '').replace(/\"([^\"]*)\"/g, '\\u201C$1\\u201D');\n  const INSTITUCION = tipo(cfg['institucion.nombre_oficial'] || '');\n  const CARGO = cfg['firma.cargo'] || 'Secretaria General (s)';\n  const nivelTexto = cap(est.nivel);\n  const modalidadTexto = String(est.modalidad || 'Presencial').toLowerCase();\n  const jornadaTexto = (modalidadTexto === 'en linea' || modalidadTexto === 'en línea')\n    ? 'a través de la plataforma virtual institucional'\n    : 'asistiendo regularmente a clases de lunes a viernes';\n  const ciudad = cfg['institucion.ciudad_emision'] || 'Quito';\n  const hoy = new Date();\n  const meses = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];\n  const fechaEmision = `${hoy.getDate()} de ${meses[hoy.getMonth()]} de ${hoy.getFullYear()}`;\n  const ingresoTexto = (est.ingreso_codigo || '') + (est.ingreso_nombre ? ` (${est.ingreso_nombre})` : '');\n\n  // 3) PDF sobre el membrete oficial, replicando el formato institucional\n  const membrete = fs.readFileSync('/data/plantillas/membrete-certificado.png');\n  const pdfBuffer = await new Promise((resolve, reject) => {\n    const doc = new PDFDocument({ size:'A4', margin:0 });\n    const chunks = []; doc.on('data', c => chunks.push(c)); doc.on('end', () => resolve(Buffer.concat(chunks))); doc.on('error', reject);\n    const W = doc.page.width;\n    const LM = 85, TW = 425.6;   // margen izquierdo y ancho del bloque de texto\n\n    doc.image(membrete, 0, 0, { width: W, height: doc.page.height });\n    doc.fillColor('#000000');\n\n    // Párrafo justificado admitiendo tramos en negrita (control exacto del interlineado).\n    // Se calcula el corte de línea y el espaciado a mano: pdfkit no justifica bien\n    // la línea en la que termina un tramo con otra tipografía.\n    function parrafo(runs, x, y0, width, lineH) {\n      const SP = doc.font('Times-Roman').widthOfString(' ');\n      const words = []; let pega = false;\n      for (const r of runs) {\n        const s = String(r.t), conEsp = /^\\s/.test(s);\n        s.split(/\\s+/).filter(Boolean).forEach((p, i) => {\n          if (i === 0 && pega && !conEsp && words.length) words[words.length - 1].segs.push({ t: p, f: r.f });\n          else words.push({ segs: [{ t: p, f: r.f }] });\n        });\n        pega = !/\\s$/.test(s);\n      }\n      for (const w of words) w.w = w.segs.reduce((a, s) => a + doc.font(s.f).widthOfString(s.t), 0);\n      const lineas = []; let cur = [], curW = 0;\n      for (const w of words) {\n        const add = cur.length ? SP + w.w : w.w;\n        if (cur.length && curW + add > width) { lineas.push({ ws: cur, w: curW }); cur = [w]; curW = w.w; }\n        else { cur.push(w); curW += add; }\n      }\n      if (cur.length) lineas.push({ ws: cur, w: curW });\n      let y = y0;\n      lineas.forEach((ln, i) => {\n        const huecos = ln.ws.length - 1;\n        const sp = (i < lineas.length - 1 && huecos > 0) ? SP + (width - ln.w) / huecos : SP;\n        let cx = x;\n        for (const w of ln.ws) {\n          for (const s of w.segs) { doc.font(s.f).text(s.t, cx, y, { lineBreak: false }); cx += doc.widthOfString(s.t); }\n          cx += sp;\n        }\n        y += lineH;\n      });\n      return y;   // y de la línea siguiente\n    }\n\n    doc.fontSize(12);\n    let y = parrafo([\n      { t: `En calidad de ${CARGO} del `, f: 'Times-Roman' },\n      { t: `${INSTITUCION}, `, f: 'Times-Bold' },\n      { t: `certifico que el/la estudiante ${est.nombres}, con cédula de ciudadanía N°. ${est.cedula}, ` +\n           `se matriculó en ${nivelTexto} periodo académico en la carrera `, f: 'Times-Roman' },\n      { t: String(est.carrera || '').toUpperCase(), f: 'Times-Bold' },\n      { t: `, periodo lectivo ${est.periodo_nombre || ''}, modalidad ${modalidadTexto}, ${jornadaTexto}.`, f: 'Times-Roman' },\n    ], LM, 133.5, TW, 15.0);\n\n    // Inicio de estudios\n    y = y + 9.1;\n    doc.font('Times-Roman').text('Así mismo debo informar, que inició sus estudios académicos en:', LM, y, { width: TW });\n\n    y = y + 30.1;\n    doc.text(est.nivel_ingreso || 'Primer nivel', LM, y, { lineBreak: false });\n    doc.text(ingresoTexto, 271.8, y, { lineBreak: false });\n\n    // Fecha de emisión\n    doc.font('Times-Italic').text(`Se emite este certificado en ${ciudad}, a los ${fechaEmision}.`, LM, y + 30.0, { width: TW });\n\n    // Firma, QR de verificación y pie institucional\n    y = y + 99.8;\n    doc.font('Times-Roman').text('Atentamente,', LM, y, { align:'center', width: TW });\n\n    const QRW = 102, qrY = y + 30.6;\n    doc.image(qrBuffer, (W - QRW) / 2, qrY, { width: QRW });\n    doc.fontSize(8).text(qr.identificador, LM, qrY + 97.8, { align:'center', width: TW });\n    doc.fontSize(12).text(`${cfg['firma.nombre'] || ''} ${CARGO}`, LM, qrY + 124.5, { align:'center', width: TW });\n    doc.text(INSTITUCION, LM, qrY + 139.5, { align:'center', width: TW });\n\n    doc.end();\n  });\n\n  // 4) Guardar PDF y registrar certificado (con snapshot de los datos impresos)\n  const rel = qr.identificador + '.pdf';\n  const abs = '/data/storage/certificados/' + rel;\n  fs.writeFileSync(abs, pdfBuffer);\n  const cert = (await client.query(\n    `INSERT INTO certificados\n       (estudiante_id, qr_id, pdf_path, periodo_lectivo_codigo, periodo_lectivo_nombre, modalidad,\n        periodo_ingreso_codigo, periodo_ingreso_nombre, nivel_ingreso, firmante_nombre, firmante_cargo)\n     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,\n    [est.id, qr.id, 'storage/certificados/' + rel, est.periodo_codigo, est.periodo_nombre, est.modalidad,\n     est.ingreso_codigo, est.ingreso_nombre, est.nivel_ingreso, cfg['firma.nombre'], cfg['firma.cargo']])).rows[0];\n  await client.query('UPDATE qr_codigos SET certificado_id = $1 WHERE id = $2', [cert.id, qr.id]);\n\n  // 5) Enviar por correo con el PDF adjunto\n  const _rawtx = nodemailer.createTransport({ host: $env.SMTP_HOST, port: Number($env.SMTP_PORT||465), secure: String($env.SMTP_SECURE||'true')!=='false', auth: $env.SMTP_USER ? { user: $env.SMTP_USER, pass: $env.SMTP_PASS } : undefined, tls: { rejectUnauthorized: false } }); const tx = { sendMail: async (m) => { try { return await _rawtx.sendMail(m); } catch(e) { console.log('YaviBot: correo no enviado -', e.message); } } };\n  await tx.sendMail({ from: ($env.SMTP_FROM || $env.SMTP_USER || 'no-reply@yavibot.local'), to: est.correo,\n    subject:'Tu Certificado de Matrícula — Instituto Yavirac',\n    text:`Hola ${est.nombres},\\n\\nAdjuntamos tu Certificado de Matrícula en formato PDF.\\nPuedes verificar su autenticidad escaneando el código QR incluido.\\n\\n${cfg['institucion.nombre_oficial'] || 'Instituto Superior Tecnológico Yavirac'}`,\n    attachments:[{ filename:'certificado-matricula.pdf', content: pdfBuffer }] });\n\n  return [{ json: { _status:200, _body:{ ok:true, data:{\n    mensaje:'Su certificado de matrícula ha sido generado correctamente y enviado a su correo institucional.' } } } }];\n} finally { await client.end(); }"
-      },
-      "id": "n_code",
-      "name": "Lógica",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        260,
-        300
-      ]
-    },
-    {
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ $json._body }}",
-        "options": {
-          "responseCode": "={{ $json._status }}"
-        }
-      },
-      "id": "n_resp",
-      "name": "Responder",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        520,
-        300
-      ]
-    }
-  ],
-  "connections": {
-    "Webhook": {
-      "main": [
-        [
-          {
-            "node": "Lógica",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Lógica": {
-      "main": [
-        [
-          {
-            "node": "Responder",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    }
-  },
-  "settings": {
-    "executionOrder": "v1"
-  }
+    "name":  "Chatbot - Certificado de Matrícula",
+    "nodes":  [
+                  {
+                      "parameters":  {
+                                         "httpMethod":  "POST",
+                                         "path":  "chatbot/certificado",
+                                         "responseMode":  "responseNode",
+                                         "options":  {
+                                                         "allowedOrigins":  "*"
+                                                     }
+                                     },
+                      "id":  "n_wh",
+                      "name":  "Webhook",
+                      "type":  "n8n-nodes-base.webhook",
+                      "typeVersion":  2.1,
+                      "position":  [
+                                       0,
+                                       300
+                                   ],
+                      "webhookId":  "yb-chatbot-certificado"
+                  },
+                  {
+                      "parameters":  {
+                                         "jsCode":  "function verifyChat(token){\n  const crypto = require(\u0027crypto\u0027);\n  const SECRET = \u0027yavibot-dev-secret-change-me\u0027;\n  if(!token) return null;\n  const parts = String(token).split(\u0027.\u0027);\n  if(parts.length !== 3) return null;\n  const [h,p,s] = parts;\n  const b64 = b =\u003e Buffer.from(b).toString(\u0027base64\u0027).replace(/=/g,\u0027\u0027).replace(/\\+/g,\u0027-\u0027).replace(/\\//g,\u0027_\u0027);\n  if(b64(crypto.createHmac(\u0027sha256\u0027, SECRET).update(h+\u0027.\u0027+p).digest()) !== s) return null;\n  let c; try { c = JSON.parse(Buffer.from(p.replace(/-/g,\u0027+\u0027).replace(/_/g,\u0027/\u0027),\u0027base64\u0027).toString()); } catch(e){ return null; }\n  if(c.typ !== \u0027chat\u0027) return null;\n  if(c.exp \u0026\u0026 c.exp \u003c Math.floor(Date.now()/1000)) return null;\n  return c;\n}\n\nconst { Client } = require(\u0027pg\u0027);\nconst QRCode = require(\u0027qrcode\u0027);\nconst PDFDocument = require(\u0027pdfkit\u0027);\nconst nodemailer = require(\u0027nodemailer\u0027);\nconst fs = require(\u0027fs\u0027);\n\nconst claims = verifyChat($json.headers[\u0027x-chat-session\u0027] || $json.headers[\u0027X-Chat-Session\u0027]);\nif(!claims) return [{ json: { _status:401, _body:{ ok:false, error:{ code:\u0027NO_AUTENTICADO\u0027, message:\u0027Sesión de chat no válida\u0027 } } } }];\n\nconst client = new Client({host:\u0027postgres\u0027,port:5432,user:\u0027yavibot\u0027,password:\u0027yavibot_dev_2026\u0027,database:\u0027yavibot\u0027});\nawait client.connect();\ntry {\n  const est = (await client.query(\n    `SELECT e.id, e.nombres, e.correo, e.cedula, e.nivel, e.paralelo, e.modalidad, e.nivel_ingreso,\n       c.nombre AS carrera,\n       pa.codigo AS periodo_codigo, pa.nombre AS periodo_nombre,\n       pi.codigo AS ingreso_codigo, pi.nombre AS ingreso_nombre\n     FROM estudiantes e\n     JOIN carreras c ON c.id = e.carrera_id\n     LEFT JOIN periodos_academicos pa ON pa.vigente = true\n     LEFT JOIN periodos_academicos pi ON pi.id = e.periodo_ingreso_id\n     WHERE e.cedula = $1`, [claims.sub])).rows[0];\n  if(!est) return [{ json: { _status:404, _body:{ ok:false, error:{ code:\u0027NO_ENCONTRADO\u0027, message:\u0027Estudiante no encontrado\u0027 } } } }];\n\n  // Configuración institucional (membrete + firma) — editable sin tocar código\n  const cfgRows = (await client.query(\n    `SELECT clave, valor FROM configuracion_sistema WHERE clave LIKE \u0027institucion.%\u0027 OR clave LIKE \u0027firma.%\u0027`)).rows;\n  const cfg = Object.fromEntries(cfgRows.map(r =\u003e [r.clave, r.valor]));\n\n  // 1) QR nuevo e irrepetible\n  const qr = (await client.query(\n    `INSERT INTO qr_codigos (estudiante_id, payload) VALUES ($1, $2) RETURNING id, identificador`,\n    [est.id, JSON.stringify({ tipo:\u0027CERT_MATRICULA\u0027 })])).rows[0];\n  const verifyUrl = \u0027http://localhost:4200/verificar/\u0027 + qr.identificador;\n  const qrDataUrl = await QRCode.toDataURL(verifyUrl, { margin:2, width:260 });\n  const qrBuffer = Buffer.from(qrDataUrl.split(\u0027,\u0027)[1], \u0027base64\u0027);\n\n  // 2) Texto conforme al formato oficial del certificado\n  const cap = s =\u003e { s = String(s || \u0027\u0027).trim().toLowerCase(); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };\n  const tipo = s =\u003e String(s || \u0027\u0027).replace(/\"([^\"]*)\"/g, \u0027\\u201C$1\\u201D\u0027);\n  const INSTITUCION = tipo(cfg[\u0027institucion.nombre_oficial\u0027] || \u0027\u0027);\n  const CARGO = cfg[\u0027firma.cargo\u0027] || \u0027Secretaria General (s)\u0027;\n  const nivelTexto = cap(est.nivel);\n  const modalidadTexto = String(est.modalidad || \u0027Presencial\u0027).toLowerCase();\n  const jornadaTexto = (modalidadTexto === \u0027en linea\u0027 || modalidadTexto === \u0027en línea\u0027)\n    ? \u0027a través de la plataforma virtual institucional\u0027\n    : \u0027asistiendo regularmente a clases de lunes a viernes\u0027;\n  const ciudad = cfg[\u0027institucion.ciudad_emision\u0027] || \u0027Quito\u0027;\n  const hoy = new Date();\n  const meses = [\u0027enero\u0027,\u0027febrero\u0027,\u0027marzo\u0027,\u0027abril\u0027,\u0027mayo\u0027,\u0027junio\u0027,\u0027julio\u0027,\u0027agosto\u0027,\u0027septiembre\u0027,\u0027octubre\u0027,\u0027noviembre\u0027,\u0027diciembre\u0027];\n  const fechaEmision = `${hoy.getDate()} de ${meses[hoy.getMonth()]} de ${hoy.getFullYear()}`;\n  const ingresoTexto = (est.ingreso_codigo || \u0027\u0027) + (est.ingreso_nombre ? ` (${est.ingreso_nombre})` : \u0027\u0027);\n\n  // 3) PDF sobre el membrete oficial, replicando el formato institucional\n  const membrete = fs.readFileSync(\u0027/data/plantillas/membrete-certificado.png\u0027);\n  const pdfBuffer = await new Promise((resolve, reject) =\u003e {\n    const doc = new PDFDocument({ size:\u0027A4\u0027, margin:0 });\n    const chunks = []; doc.on(\u0027data\u0027, c =\u003e chunks.push(c)); doc.on(\u0027end\u0027, () =\u003e resolve(Buffer.concat(chunks))); doc.on(\u0027error\u0027, reject);\n    const W = doc.page.width;\n    const LM = 85, TW = 425.6;   // margen izquierdo y ancho del bloque de texto\n\n    doc.image(membrete, 0, 0, { width: W, height: doc.page.height });\n    doc.fillColor(\u0027#000000\u0027);\n\n    // Párrafo justificado admitiendo tramos en negrita (control exacto del interlineado).\n    // Se calcula el corte de línea y el espaciado a mano: pdfkit no justifica bien\n    // la línea en la que termina un tramo con otra tipografía.\n    function parrafo(runs, x, y0, width, lineH) {\n      const SP = doc.font(\u0027Times-Roman\u0027).widthOfString(\u0027 \u0027);\n      const words = []; let pega = false;\n      for (const r of runs) {\n        const s = String(r.t), conEsp = /^\\s/.test(s);\n        s.split(/\\s+/).filter(Boolean).forEach((p, i) =\u003e {\n          if (i === 0 \u0026\u0026 pega \u0026\u0026 !conEsp \u0026\u0026 words.length) words[words.length - 1].segs.push({ t: p, f: r.f });\n          else words.push({ segs: [{ t: p, f: r.f }] });\n        });\n        pega = !/\\s$/.test(s);\n      }\n      for (const w of words) w.w = w.segs.reduce((a, s) =\u003e a + doc.font(s.f).widthOfString(s.t), 0);\n      const lineas = []; let cur = [], curW = 0;\n      for (const w of words) {\n        const add = cur.length ? SP + w.w : w.w;\n        if (cur.length \u0026\u0026 curW + add \u003e width) { lineas.push({ ws: cur, w: curW }); cur = [w]; curW = w.w; }\n        else { cur.push(w); curW += add; }\n      }\n      if (cur.length) lineas.push({ ws: cur, w: curW });\n      let y = y0;\n      lineas.forEach((ln, i) =\u003e {\n        const huecos = ln.ws.length - 1;\n        const sp = (i \u003c lineas.length - 1 \u0026\u0026 huecos \u003e 0) ? SP + (width - ln.w) / huecos : SP;\n        let cx = x;\n        for (const w of ln.ws) {\n          for (const s of w.segs) { doc.font(s.f).text(s.t, cx, y, { lineBreak: false }); cx += doc.widthOfString(s.t); }\n          cx += sp;\n        }\n        y += lineH;\n      });\n      return y;   // y de la línea siguiente\n    }\n\n    doc.fontSize(12);\n    let y = parrafo([\n      { t: `En calidad de ${CARGO} del `, f: \u0027Times-Roman\u0027 },\n      { t: `${INSTITUCION}, `, f: \u0027Times-Bold\u0027 },\n      { t: `certifico que el/la estudiante ${est.nombres}, con cédula de ciudadanía N°. ${est.cedula}, ` +\n           `se matriculó en ${nivelTexto} periodo académico en la carrera `, f: \u0027Times-Roman\u0027 },\n      { t: String(est.carrera || \u0027\u0027).toUpperCase(), f: \u0027Times-Bold\u0027 },\n      { t: `, periodo lectivo ${est.periodo_nombre || \u0027\u0027}, modalidad ${modalidadTexto}, ${jornadaTexto}.`, f: \u0027Times-Roman\u0027 },\n    ], LM, 133.5, TW, 15.0);\n\n    // Inicio de estudios\n    y = y + 9.1;\n    doc.font(\u0027Times-Roman\u0027).text(\u0027Así mismo debo informar, que inició sus estudios académicos en:\u0027, LM, y, { width: TW });\n\n    y = y + 30.1;\n    doc.text(est.nivel_ingreso || \u0027Primer nivel\u0027, LM, y, { lineBreak: false });\n    doc.text(ingresoTexto, 271.8, y, { lineBreak: false });\n\n    // Fecha de emisión\n    doc.font(\u0027Times-Italic\u0027).text(`Se emite este certificado en ${ciudad}, a los ${fechaEmision}.`, LM, y + 30.0, { width: TW });\n\n    // Firma, QR de verificación y pie institucional\n    y = y + 99.8;\n    doc.font(\u0027Times-Roman\u0027).text(\u0027Atentamente,\u0027, LM, y, { align:\u0027center\u0027, width: TW });\n\n    const QRW = 102, qrY = y + 30.6;\n    doc.image(qrBuffer, (W - QRW) / 2, qrY, { width: QRW });\n    doc.fontSize(8).text(qr.identificador, LM, qrY + 97.8, { align:\u0027center\u0027, width: TW });\n    doc.fontSize(12).text(`${cfg[\u0027firma.nombre\u0027] || \u0027\u0027} ${CARGO}`, LM, qrY + 124.5, { align:\u0027center\u0027, width: TW });\n    doc.text(INSTITUCION, LM, qrY + 139.5, { align:\u0027center\u0027, width: TW });\n\n    doc.end();\n  });\n\n  // 4) Guardar PDF y registrar certificado (con snapshot de los datos impresos)\n  const rel = qr.identificador + \u0027.pdf\u0027;\n  const abs = \u0027/data/storage/certificados/\u0027 + rel;\n  fs.writeFileSync(abs, pdfBuffer);\n  const cert = (await client.query(\n    `INSERT INTO certificados\n       (estudiante_id, qr_id, pdf_path, periodo_lectivo_codigo, periodo_lectivo_nombre, modalidad,\n        periodo_ingreso_codigo, periodo_ingreso_nombre, nivel_ingreso, firmante_nombre, firmante_cargo)\n     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING id`,\n    [est.id, qr.id, \u0027storage/certificados/\u0027 + rel, est.periodo_codigo, est.periodo_nombre, est.modalidad,\n     est.ingreso_codigo, est.ingreso_nombre, est.nivel_ingreso, cfg[\u0027firma.nombre\u0027], cfg[\u0027firma.cargo\u0027]])).rows[0];\n  await client.query(\u0027UPDATE qr_codigos SET certificado_id = $1 WHERE id = $2\u0027, [cert.id, qr.id]);\n\n  // 5) Enviar por correo con el PDF adjunto\n  const _rawtx = nodemailer.createTransport({ host: $env.SMTP_HOST, port: Number($env.SMTP_PORT||465), secure: String($env.SMTP_SECURE||\u0027true\u0027)!==\u0027false\u0027, auth: $env.SMTP_USER ? { user: $env.SMTP_USER, pass: $env.SMTP_PASS } : undefined, tls: { rejectUnauthorized: false } }); const tx = { sendMail: async (m) =\u003e { try { return await _rawtx.sendMail(m); } catch(e) { console.log(\u0027YaviBot: correo no enviado -\u0027, e.message); } } };\n  await tx.sendMail({ from: ($env.SMTP_FROM || $env.SMTP_USER || \u0027no-reply@yavibot.local\u0027), to: est.correo,\n    subject:\u0027Tu Certificado de Matrícula — Instituto Yavirac\u0027,\n    text:`Hola ${est.nombres},\\n\\nAdjuntamos tu Certificado de Matrícula en formato PDF.\\nPuedes verificar su autenticidad escaneando el código QR incluido.\\n\\n${cfg[\u0027institucion.nombre_oficial\u0027] || \u0027Instituto Superior Tecnológico Yavirac\u0027}`,\n    attachments:[{ filename:\u0027certificado-matricula.pdf\u0027, content: pdfBuffer }] });\n\n  return [{ json: { _status:200, _body:{ ok:true, data:{\n    mensaje:\u0027Su certificado de matrícula ha sido generado correctamente y enviado a su correo institucional.\u0027 } } } }];\n} finally { await client.end(); }"
+                                     },
+                      "id":  "n_code",
+                      "name":  "Lógica",
+                      "type":  "n8n-nodes-base.code",
+                      "typeVersion":  2,
+                      "position":  [
+                                       260,
+                                       300
+                                   ]
+                  },
+                  {
+                      "parameters":  {
+                                         "respondWith":  "json",
+                                         "responseBody":  "={{ $json._body }}",
+                                         "options":  {
+                                                         "responseCode":  "={{ $json._status }}"
+                                                     }
+                                     },
+                      "id":  "n_resp",
+                      "name":  "Responder",
+                      "type":  "n8n-nodes-base.respondToWebhook",
+                      "typeVersion":  1.5,
+                      "position":  [
+                                       520,
+                                       300
+                                   ]
+                  }
+              ],
+    "connections":  {
+                        "Webhook":  {
+                                        "main":  [
+                                                     [
+                                                         {
+                                                             "node":  "Lógica",
+                                                             "type":  "main",
+                                                             "index":  0
+                                                         }
+                                                     ]
+                                                 ]
+                                    },
+                        "Lógica":  {
+                                       "main":  [
+                                                    [
+                                                        {
+                                                            "node":  "Responder",
+                                                            "type":  "main",
+                                                            "index":  0
+                                                        }
+                                                    ]
+                                                ]
+                                   }
+                    },
+    "settings":  {
+                     "executionOrder":  "v1"
+                 }
 }
