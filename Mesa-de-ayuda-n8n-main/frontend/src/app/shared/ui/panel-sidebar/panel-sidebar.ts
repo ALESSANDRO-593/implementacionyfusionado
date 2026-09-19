@@ -5,6 +5,8 @@ import { Rol, ROLES_ALERTAS, ROLES_TICKETS } from '../../../core/auth/roles';
 
 interface NavItem { id: string; label: string; icon: string; route: string; }
 
+const CEDULA_ADMIN_PARKING = '1709918914';
+
 /**
  * Navegación del Panel. Los ítems salen del `rol_id`, igual que los guards,
  * de modo que un docente ve exactamente los apartados a los que su rol da acceso.
@@ -38,6 +40,10 @@ export class PanelSidebar {
       items.push({ id: 'carga', label: 'Carga Masiva', icon: '📤', route: '/panel/carga' });
     }
     return items;
+  }
+
+  get mostrarAccesoParqueadero(): boolean {
+    return this.auth.cedula() === CEDULA_ADMIN_PARKING;
   }
 
   ir(route: string) { this.router.navigateByUrl(route); }

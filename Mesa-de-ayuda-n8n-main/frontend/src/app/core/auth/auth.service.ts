@@ -16,6 +16,7 @@ export class AuthService {
 
   private _claims = signal<Claims | null>(this.decode(this.token()));
   readonly rol = computed(() => this._claims()?.rol ?? null);
+  readonly cedula = computed(() => this._claims()?.ced ?? null);
   /** Id del rol: única base para decidir accesos. */
   readonly rolId = computed(() => this._claims()?.rol_id ?? null);
   readonly isAuthenticated = computed(() => {
