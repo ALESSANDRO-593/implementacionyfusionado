@@ -10,9 +10,9 @@ import { CertificadoMatricula } from '../models/estudiante.model';
  *  - Fuente: Times New Roman 12pt en TODO el documento (cuerpo y firma).
  *  - Párrafo principal: JUSTIFICADO, con negrita solo en el nombre de la
  *    institución y en la carrera.
- *  - Párrafo "Así mismo… / Se emite…": es UN SOLO párrafo, alineado a la
- *    IZQUIERDA (no justificado), a doble espacio, con un tabulador entre
- *    "Primer nivel" y el año, y en cursiva solo la parte "Se emite…".
+ *  - Párrafo "Así mismo… / Se emite…": son DOS líneas alineadas a la
+ *    IZQUIERDA (no justificado), a doble espacio. La primera en texto normal
+ *    y la segunda ("Se emite...") completa en cursiva.
  *  - Firma centrada, en una sola línea, SIN negrita.
  *  - QR centrado al final con leyenda "MV — Generado mediante App Móvil".
  *
@@ -67,20 +67,25 @@ export class CertificadoPdfService {
     ];
     Y = this.renderParrafo(doc, seg1, this.P1_X, this.P1_RIGHT_EDGE, Y, this.LH, /* justificar */ true);
 
-    // ── 3. Párrafo "Así mismo… / Se emite…" — UN SOLO párrafo, sin justificar,
-    //        a doble espacio, con tabulador y cursiva parcial ─────────────────
+    // ── 3. Párrafo "Así mismo…" y "Se emite…" ───────────────────────────────────
     Y += this.LH * 0.6;
 
     const periodoIngreso = certificado.periodoIngresoCodigo && certificado.periodoIngresoNombre
-      ? `${certificado.periodoIngresoCodigo} (${certificado.periodoIngresoNombre}) `
+      ? ` ${certificado.periodoIngresoCodigo} (${certificado.periodoIngresoNombre})`
       : '';
-    const seg2: Segmento[] = [
-      { texto: `As\u00ED mismo debo informar, que inici\u00F3 sus estudios acad\u00E9micos en: ${certificado.nivelIngreso}` },
-      { tab: true },
-      { texto: periodoIngreso },
-      { texto: `Se emite este certificado en Quito, a los ${certificado.fechaEmision}.`, italic: true },
+
+    // Primera línea: "Así mismo..." en texto normal
+    const seg2_l1: Segmento[] = [
+      { texto: `As\u00ED mismo debo informar, que inici\u00F3 sus estudios acad\u00E9micos en: ${certificado.nivelIngreso}${periodoIngreso}` }
     ];
-    Y = this.renderParrafo(doc, seg2, this.P2_X, this.P2_RIGHT_EDGE, Y, this.LH2, /* justificar */ false);
+    // Usamos P1_RIGHT_EDGE para darle el ancho completo y LH2 para el doble salto de línea
+    Y = this.renderParrafo(doc, seg2_l1, this.P2_X, this.P1_RIGHT_EDGE, Y, this.LH2, false);
+
+    // Segunda línea: "Se emite..." completa, en cursiva y con la gramática corregida ("el")
+    const seg2_l2: Segmento[] = [
+      { texto: `Se emite este certificado en Quito, el ${certificado.fechaEmision}.`, italic: true }
+    ];
+    Y = this.renderParrafo(doc, seg2_l2, this.P2_X, this.P1_RIGHT_EDGE, Y, this.LH2, false);
 
     // ── 4. FIRMA centrada ─────────────────────────────────────────────────────
     Y += 14;
@@ -219,13 +224,13 @@ export class CertificadoPdfService {
       }
 
       const extra2 = actual.length > 0 ? spaceW : 0;
-      actual.push({ ...tok, ancho });
-      anchoActual += extra2 + ancho;
-    }
+        actual.push({ ...tok, ancho });
+        anchoActual += extra2 + ancho;
+      }
 
-    if (actual.length) lineas.push(actual);
-    return lineas;
-  }
+      if (actual.length) lineas.push(actual);
+      return lineas;
+    }
 
   private anchoTexto(doc: jsPDF, texto: string, bold: boolean, italic: boolean): number {
     doc.setFont('times', bold ? 'bold' : (italic ? 'italic' : 'normal'));
